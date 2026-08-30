@@ -9,7 +9,7 @@ export default function Home() {
     (async () => {
       const { data: { session } } = await sb().auth.getSession();
       if (!session) return router.replace("/login");
-      const { data: profile } = await supabase
+      const { data: profile } = await sb()
         .from("profiles").select("role").eq("id", session.user.id).single();
       if (profile?.role === "admin") router.replace("/teacher");
       else if (profile?.role === "student" || profile?.role === "parent") router.replace("/me");
