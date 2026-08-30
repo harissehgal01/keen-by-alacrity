@@ -46,7 +46,7 @@ export default function Teacher() {
     (async () => {
       const { data: { session } } = await sb().auth.getSession();
       if (!session) return router.replace("/login");
-      const { data: profile } = await supabase
+      const { data: profile } = await sb()
         .from("profiles").select("role").eq("id", session.user.id).single();
       if (profile?.role !== "admin") return router.replace(profile?.student_id ? "/me" : "/pending");
       await load();
