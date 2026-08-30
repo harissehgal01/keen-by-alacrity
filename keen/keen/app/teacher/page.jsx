@@ -1,0 +1,359 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { sb } from "../../lib/supabaseClient";
+import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button, Input, Footer } from "../../lib/ui";
+import {
+  DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
+  BUCKS_PER_WEEK, RUPEES_PER_BUCK,
+} from "../../lib/theme";
+
+const ATT = [["present", "Present"], ["absent", "Absent"], ["no_class", "No class"]];
+
+export default function Teacher() {
+  const { C, dark, setDark } = useTheme();
+  const router = useRouter();
+  const [students, setStudents] = useState([]);
+  const [records, setRecords] = useState({});      // `${student_id}|${date}` -> row
+  const [bucks, setBucks] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [date, setDate] = useState(iso(new Date()));
+  const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
+  const [open, setOpen] = useState(null);
+  const [view, setView] = useState("day");
+  const [tab, setTab] = useState("score");
+  const [showCal, setShowCal] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("");
+  const [newName, setNewName] = useState("");
+
+  const load = useCallback(async () => {
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }] = await Promise.all([
+      sb().from("students").select("*").eq("active", true).order("name"),
+      sb().from("day_records").select("*"),
+      sb().from("weekly_bucks").select("*"),
+      sb().from("profiles").select("*").order("created_at"),
+    ]);
+    setStudents(st || []);
+    const map = {};
+    (recs || []).forEach((r) => { map[`${r.student_id}|${r.on_date}`] = r; });
+    setRecords(map);
+    setBucks(wb || []);
+    setPending(pf || []);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await sb().auth.getSession();
+      if (!session) return router.replace("/login");
+      const { data: profile } = await sb()
+        .from("profiles").select("role").eq("id", session.user.id).single();
+      if (profile?.role !== "admin") return router.replace(profile?.student_id ? "/me" : "/pending");
+      await load();
+      setLoading(false);
+    })();
+  }, [router, load]);
+
+  const rec = (sid, d = date) => records[`${sid}|${d}`] || { ...BLANK, attendance: null };
+
+  const write = async (sid, patch) => {
+    const current = rec(sid);
+    const row = {
+      student_id: sid, on_date: date,
+      work: current.work || 0, behaviour: current.behaviour || 0, obedience: current.obedience || 0,
+      phone: current.phone || 0, seat: current.seat || 0, homework: current.homework || 0,
+      bonus: current.bonus || 0, attendance: current.attendance ?? null,
+      ...patch, updated_at: new Date().toISOString(),
+    };
+    setRecords((r) => ({ ...r, [`${sid}|${date}`]: row }));   // optimistic
+    setStatus("Saving…");
+    const { error } = await sb().from("day_records")
+      .upsert(row, { onConflict: "student_id,on_date" });
+    if (error) { setStatus("Did NOT save — check your connection and try again."); await load(); }
+    else { setStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`); }
+  };
+
+  const bump = (sid, key, delta, min, max) => {
+    const v = Math.max(min, Math.min(max, (rec(sid)[key] || 0) + delta));
+    write(sid, { [key]: v });
+  };
+
+  const setAtt = (sid, mark) => write(sid, { attendance: rec(sid).attendance === mark ? null : mark });
+
+  const approve = async (profileId, role, studentId) => {
+    await sb().from("profiles").update({ role, student_id: studentId }).eq("id", profileId);
+    await load();
+  };
+  const addStudent = async () => {
+    const n = newName.trim();
+    if (!n) return;
+    await sb().from("students").insert({ name: n });
+    setNewName(""); await load();
+  };
+  const signOut = async () => { await sb().auth.signOut(); router.replace("/login"); };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, color: C.muted, fontFamily: "'Inter', sans-serif", padding: 24 }}>
+        <Fonts C={C} />Loading…
+      </div>
+    );
+  }
+
+  const inMonth = (k) => { const d = new Date(k); return d.getFullYear() === cursor.y && d.getMonth() === cursor.m; };
+  const scoreOf = (sid) => {
+    if (view === "day") return points(rec(sid));
+    return Object.keys(records)
+      .filter((k) => k.startsWith(`${sid}|`))
+      .filter((k) => (view === "month" ? inMonth(k.split("|")[1]) : true))
+      .reduce((a, k) => a + points(records[k]), 0);
+  };
+  const attStats = (sid) => {
+    const keys = Object.keys(records).filter((k) => k.startsWith(`${sid}|`) && inMonth(k.split("|")[1]));
+    const held = keys.filter((k) => ["present", "absent"].includes(records[k].attendance)).length;
+    const present = keys.filter((k) => records[k].attendance === "present").length;
+    return { held, present, missed: held - present, pct: held ? Math.round((present / held) * 100) : 0 };
+  };
+
+  const ranked = [...students].sort((a, b) => scoreOf(b.id) - scoreOf(a.id));
+  const top = ranked.length ? scoreOf(ranked[0].id) : 0;
+  const thisWeek = mondayOf(date);
+  const weekWinners = bucks.filter((b) => b.week_start === thisWeek);
+  const bucksTotals = students.map((s) => ({
+    s,
+    bucks: bucks.filter((b) => b.student_id === s.id && b.week_start !== thisWeek).reduce((a, b) => a + Number(b.bucks), 0),
+    rupees: bucks.filter((b) => b.student_id === s.id && b.week_start !== thisWeek).reduce((a, b) => a + Number(b.rupees), 0),
+  })).sort((a, b) => b.bucks - a.bucks);
+  const waiting = pending.filter((p) => p.role === "pending");
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Inter', sans-serif" }}>
+      <Fonts C={C} />
+      <div style={{ maxWidth: 620, margin: "0 auto", padding: "20px 16px 56px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <Lockup C={C} sub="Keen" />
+          <div style={{ textAlign: "right" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
+              <ThemeToggle C={C} dark={dark} setDark={setDark} />
+              <button onClick={signOut} style={{ background: "transparent", color: C.muted, fontSize: 13, fontWeight: 600 }}>Sign out</button>
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: status.includes("NOT") ? C.warn : C.muted, marginTop: 4 }}>{status}</div>
+          </div>
+        </div>
+
+        <h1 style={{ fontFamily: DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1, margin: "18px 0 0" }}>Keen</h1>
+        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>{pretty(date)}</div>
+
+        <div style={{ display: "flex", gap: 6, marginTop: 16 }}>
+          {[["score", "Scoring"], ["people", `People${waiting.length ? ` (${waiting.length})` : ""}`]].map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)}
+              style={{ background: tab === k ? C.accent : "transparent", color: tab === k ? C.onAccent : C.ink,
+                border: `1px solid ${tab === k ? C.accent : C.line}`, borderRadius: 999, padding: "8px 16px", fontSize: 13.5, fontWeight: 500 }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {tab === "people" ? (
+          <div style={{ marginTop: 16 }}>
+            <Card C={C}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Waiting for approval</h3>
+              {waiting.length === 0 ? (
+                <p style={{ fontSize: 14, color: C.muted, marginTop: 10 }}>Nobody is waiting. New sign-ups appear here.</p>
+              ) : waiting.map((p) => (
+                <div key={p.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 14, marginTop: 14 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{p.full_name || "(no name given)"}</div>
+                  <div style={{ fontSize: 13, color: C.muted }}>{p.email}</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+                    Says they're linked to: <strong style={{ color: C.ink }}>{p.requested_student_name || "—"}</strong>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    {students.map((s) => (
+                      <span key={s.id} style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => approve(p.id, "student", s.id)}
+                          style={{ background: C.soft, color: C.deep, border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12.5 }}>
+                          {s.name} · student
+                        </button>
+                        <button onClick={() => approve(p.id, "parent", s.id)}
+                          style={{ background: "transparent", color: C.ink, border: `1px solid ${C.line}`, borderRadius: 999, padding: "7px 12px", fontSize: 12.5 }}>
+                          parent
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </Card>
+
+            <Card C={C} style={{ marginTop: 12 }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Approved accounts</h3>
+              {pending.filter((p) => p.role !== "pending").map((p) => (
+                <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12, gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5 }}>{p.full_name || p.email}</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>
+                      {p.role} · {students.find((s) => s.id === p.student_id)?.name || (p.role === "admin" ? "all students" : "not linked")}
+                    </div>
+                  </div>
+                  {p.role !== "admin" ? (
+                    <button onClick={() => approve(p.id, "pending", null)}
+                      style={{ background: "transparent", color: C.warn, fontSize: 13, fontWeight: 600 }}>Revoke</button>
+                  ) : null}
+                </div>
+              ))}
+            </Card>
+
+            <Card C={C} style={{ marginTop: 12 }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Students</h3>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <Input C={C} value={newName} onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addStudent()} placeholder="Add a student" />
+                <Button C={C} onClick={addStudent} style={{ padding: "0 18px" }}>Add</Button>
+              </div>
+              {students.map((s) => (
+                <div key={s.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
+                  <div style={{ fontSize: 15 }}>{s.name}</div>
+                  <div style={{ fontSize: 12.5, color: C.muted }}>{s.schedule || "No schedule set"}</div>
+                </div>
+              ))}
+            </Card>
+            <Footer C={C} />
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, gap: 8 }}>
+              <button onClick={() => setShowCal(!showCal)}
+                style={{ background: "transparent", color: C.accent, border: `1px solid ${C.line}`, borderRadius: 999, padding: "8px 14px", fontSize: 13, fontWeight: 500 }}>
+                {showCal ? "Hide calendar" : "Calendar"}
+              </button>
+              <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.line}`, borderRadius: 999, padding: 3 }}>
+                {[["day", "Day"], ["month", "Month"], ["all", "All time"]].map(([k, l]) => (
+                  <button key={k} onClick={() => setView(k)}
+                    style={{ background: view === k ? C.accent : "transparent", color: view === k ? C.onAccent : C.muted, fontWeight: 500, fontSize: 12.5, padding: "7px 13px", borderRadius: 999 }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {showCal && (
+              <div style={{ marginTop: 12 }}>
+                <Calendar C={C} cursor={cursor} setCursor={setCursor} date={date}
+                  onPick={(d) => { setDate(d); setOpen(null); const dt = new Date(d); setCursor({ y: dt.getFullYear(), m: dt.getMonth() }); }}
+                  marks={(k) => (Object.keys(records).some((rk) => rk.endsWith(`|${k}`)) ? { bg: C.soft, dot: C.accent } : null)} />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12, color: C.muted }}>
+                  <span>Dots mark days with records</span>
+                  <button onClick={() => { const t = new Date(); setDate(iso(t)); setCursor({ y: t.getFullYear(), m: t.getMonth() }); }}
+                    style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 600 }}>Today</button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 16 }}>
+              {ranked.map((s, i) => {
+                const val = scoreOf(s.id);
+                const pct = top > 0 ? Math.max(0, (val / top) * 100) : 0;
+                const isOpen = open === s.id;
+                const r = rec(s.id);
+                const a = attStats(s.id);
+                return (
+                  <div key={s.id} style={{ marginBottom: 8 }}>
+                    <button onClick={() => setOpen(isOpen ? null : s.id)}
+                      style={{ width: "100%", position: "relative", overflow: "hidden", textAlign: "left", background: C.surface,
+                        border: `1px solid ${C.line}`, borderRadius: isOpen ? "14px 14px 0 0" : 14, padding: "14px 16px",
+                        display: "flex", alignItems: "center", gap: 12, color: C.ink }}>
+                      <span className="bar" style={{ position: "absolute", inset: "0 auto 0 0", width: `${pct}%`, background: C.soft, opacity: i === 0 ? 1 : 0.55 }} />
+                      <span style={{ position: "relative", fontFamily: MONO, fontSize: 13, fontWeight: 700, color: i === 0 ? C.accent : C.muted, width: 18 }}>{i + 1}</span>
+                      <span style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 16, fontWeight: 500 }}>{s.name}</span>
+                        <span style={{ display: "block", fontSize: 11.5, color: r.attendance === "absent" ? C.warn : C.muted, marginTop: 2 }}>
+                          {view === "day"
+                            ? (r.attendance ? ATT.find(([k]) => k === r.attendance)[1] : "Not marked")
+                            : `${a.present}/${a.held} classes · ${a.pct}%`}
+                        </span>
+                      </span>
+                      <span style={{ position: "relative", fontFamily: MONO, fontSize: 19, fontWeight: 700, color: i === 0 && val > 0 ? C.accent : C.ink }}>{val}</span>
+                    </button>
+
+                    {isOpen && (
+                      <div style={{ background: C.surface2, border: `1px solid ${C.line}`, borderTop: "none", borderRadius: "0 0 14px 14px", padding: "6px 16px 16px" }}>
+                        <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: ".08em", color: C.muted, textTransform: "uppercase", padding: "12px 0 2px" }}>
+                          {pretty(date)}
+                        </div>
+                        {s.schedule ? <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 8 }}>{s.schedule}</div> : null}
+                        <div style={{ display: "flex", gap: 6, margin: "8px 0 6px" }}>
+                          {ATT.map(([k, l]) => {
+                            const on = r.attendance === k;
+                            return (
+                              <button key={k} onClick={() => setAtt(s.id, k)}
+                                style={{ flex: 1, background: on ? (k === "absent" ? C.warn : k === "present" ? C.accent : C.muted) : "transparent",
+                                  color: on ? "#FFFFFF" : C.ink, border: `1px solid ${on ? "transparent" : C.line}`,
+                                  borderRadius: 999, padding: "9px 0", fontSize: 13, fontWeight: 500 }}>
+                                {l}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted, paddingBottom: 4 }}>
+                          {MONTHS[cursor.m]}: {a.present}/{a.held} attended · {a.missed} missed · {a.pct}%
+                        </div>
+
+                        {CATS.map((c) => (
+                          <ScoreRow key={c.key} C={C} label={c.label} hint={c.hint} weight={c.weight} max={5}
+                            value={r[c.key] || 0}
+                            onMinus={() => bump(s.id, c.key, -1, 0, 5)} onPlus={() => bump(s.id, c.key, 1, 0, 5)} />
+                        ))}
+                        <ScoreRow C={C} label="Bonus or penalty" hint="Extra effort, or points lost" signed value={r.bonus || 0}
+                          onMinus={() => bump(s.id, "bonus", -1, -10, 10)} onPlus={() => bump(s.id, "bonus", 1, -10, 10)} />
+
+                        <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${C.line}`, marginTop: 10 }}>
+                          <span style={{ fontSize: 13, color: C.muted }}>Day total</span>
+                          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.accent }}>{points(r)} / {MAXDAY}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <Card C={C} style={{ marginTop: 20 }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Electricity Bucks</h3>
+              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
+                Each week's winner earns {BUCKS_PER_WEEK} bucks · 1 buck = Rs {RUPEES_PER_BUCK} · ties split the bucks
+              </div>
+              {weekWinners.length ? (
+                <div style={{ background: C.soft, borderRadius: 10, padding: 12, marginTop: 14 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: C.deep }}>This week</div>
+                  <div style={{ fontSize: 14.5, marginTop: 6 }}>
+                    <strong>{weekWinners.map((w) => students.find((s) => s.id === w.student_id)?.name).filter(Boolean).join(" & ")}</strong>
+                    {" "}leading on {weekWinners[0].points} points.
+                  </div>
+                </div>
+              ) : null}
+              {bucksTotals.some((b) => b.bucks > 0) ? (
+                <div style={{ marginTop: 14 }}>
+                  {bucksTotals.map((b) => (
+                    <div key={b.s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.line}` }}>
+                      <span style={{ flex: 1, fontSize: 15 }}>{b.s.name}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: b.bucks ? C.accent : C.muted, width: 40, textAlign: "right" }}>{b.bucks}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 12.5, color: C.muted, width: 78, textAlign: "right" }}>Rs {b.rupees}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: C.muted, marginTop: 12 }}>Bucks are banked once a week finishes.</div>
+              )}
+            </Card>
+
+            <p style={{ color: C.muted, fontSize: 12, marginTop: 22, lineHeight: 1.6 }}>
+              Pick a date, mark attendance, then score each student. A perfect day is {MAXDAY} points.
+              Every tap saves to the database straight away.
+            </p>
+            <Footer C={C} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
