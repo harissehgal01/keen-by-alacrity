@@ -22,7 +22,7 @@ export default function Me() {
     (async () => {
       const { data: { session } } = await sb().auth.getSession();
       if (!session) return router.replace("/login");
-      const { data: profile } = await supabase
+      const { data: profile } = await sb()
         .from("profiles").select("role, student_id").eq("id", session.user.id).single();
       if (profile?.role === "admin") return router.replace("/teacher");
       if (!profile || !profile.student_id) return router.replace("/pending");
