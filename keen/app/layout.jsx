@@ -1,16 +1,25 @@
 export const metadata = {
   title: "Keen by Alacrity",
   description: "Points and attendance for Alacrity Designs students.",
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, title: "Keen", statusBarStyle: "default" },
+  icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
+};
+
+export const viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F1F3F1" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0F0E" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/mark-dark.png" />
-      </head>
-      <body>{children}</body>
+      <body style={{ margin: 0 }}>{children}</body>
     </html>
   );
 }

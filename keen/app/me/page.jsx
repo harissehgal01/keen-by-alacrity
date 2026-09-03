@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Stat, Calendar, Button, Footer } from "../../lib/ui";
+import { InstallPrompt } from "../../lib/auth";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
   BUCKS_PER_WEEK, RUPEES_PER_BUCK,
@@ -171,6 +172,7 @@ export default function Me() {
           A perfect day is {MAXDAY} points: each category is scored 0–5, then multiplied by how much it counts.
           You're seeing your own card only.
         </p>
+        <InstallPrompt C={C} />
         <Footer C={C} />
       </div>
     </div>

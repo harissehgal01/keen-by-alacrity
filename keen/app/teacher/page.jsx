@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button, Input, Footer } from "../../lib/ui";
+import { InstallPrompt } from "../../lib/auth";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
   BUCKS_PER_WEEK, RUPEES_PER_BUCK,
@@ -217,7 +218,8 @@ export default function Teacher() {
                 </div>
               ))}
             </Card>
-            <Footer C={C} />
+            <InstallPrompt C={C} />
+        <Footer C={C} />
           </div>
         ) : (
           <>
@@ -350,6 +352,7 @@ export default function Teacher() {
               Pick a date, mark attendance, then score each student. A perfect day is {MAXDAY} points.
               Every tap saves to the database straight away.
             </p>
+            <InstallPrompt C={C} />
             <Footer C={C} />
           </>
         )}

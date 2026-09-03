@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Button, Footer } from "../../lib/ui";
+import { InstallPrompt } from "../../lib/auth";
 import { DISPLAY, MONO } from "../../lib/theme";
 
 export default function Pending() {
@@ -49,6 +50,7 @@ export default function Pending() {
           <Button C={C} variant="secondary" onClick={signOut} style={{ marginTop: 6 }}>Sign out</Button>
         </Card>
 
+        <InstallPrompt C={C} />
         <Footer C={C} />
       </div>
     </div>

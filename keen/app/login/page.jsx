@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Button, Input, Footer } from "../../lib/ui";
+import { GoogleButton, Divider, InstallPrompt } from "../../lib/auth";
 import { DISPLAY, MONO } from "../../lib/theme";
 
 export default function Login() {
   const { C, dark, setDark } = useTheme();
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [child, setChild] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -20,13 +20,19 @@ export default function Login() {
     const { error } = await sb().auth.signInWithOtp({
       email: addr,
       options: {
+        shouldCreateUser: false,
         emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-        data: { full_name: name.trim(), requested_student_name: child.trim() },
       },
     });
     setBusy(false);
-    if (error) setErr(error.message);
-    else setSent(true);
+    if (!error) return setSent(true);
+    if (/rate|limit|too many/i.test(error.message)) {
+      setErr("Too many sign-in emails have gone out in the last hour. Use Continue with Google instead, or try again shortly.");
+    } else if (/signups not allowed|not found|invalid/i.test(error.message)) {
+      setErr("No account found for that address. Register first.");
+    } else {
+      setErr(error.message);
+    }
   };
 
   return (
@@ -39,11 +45,10 @@ export default function Login() {
         </div>
 
         <h1 style={{ fontFamily: DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1, margin: "24px 0 0" }}>
-          Keen
+          Sign in
         </h1>
         <p style={{ color: C.muted, fontSize: 15, marginTop: 8, lineHeight: 1.6 }}>
-          Points and attendance for Alacrity Designs students. Sign in with your email — we'll send you a link,
-          so there's no password to remember.
+          Points and attendance for Alacrity Designs students.
         </p>
 
         {sent ? (
@@ -53,39 +58,34 @@ export default function Login() {
             </div>
             <p style={{ fontSize: 15, marginTop: 10, lineHeight: 1.6 }}>
               A sign-in link is on its way to <strong>{email.trim()}</strong>. Open it on this device.
-              If it hasn't arrived in a couple of minutes, check your spam folder.
+              If nothing arrives in a few minutes, check spam, or use Google instead.
             </p>
-            <Button C={C} variant="secondary" onClick={() => setSent(false)} style={{ marginTop: 6 }}>
-              Use a different email
-            </Button>
+            <Button C={C} variant="secondary" onClick={() => setSent(false)}>Back</Button>
           </Card>
         ) : (
           <Card C={C} style={{ marginTop: 20 }}>
-            <label style={{ fontSize: 13.5, fontWeight: 600 }}>Your email</label>
+            <GoogleButton C={C} />
+            <Divider C={C} />
+
+            <label style={{ fontSize: 13.5, fontWeight: 600 }}>Email</label>
             <Input C={C} type="email" inputMode="email" autoComplete="email" value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={{ marginTop: 6 }} />
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && send()}
+              placeholder="you@example.com" style={{ marginTop: 6 }} />
 
-            <div style={{ marginTop: 16 }}>
-              <label style={{ fontSize: 13.5, fontWeight: 600 }}>Your name</label>
-              <Input C={C} value={name} onChange={(e) => setName(e.target.value)} placeholder="First and last name" style={{ marginTop: 6 }} />
-            </div>
+            {err ? <div style={{ color: C.warn, fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{err}</div> : null}
 
-            <div style={{ marginTop: 16 }}>
-              <label style={{ fontSize: 13.5, fontWeight: 600 }}>Which student are you?</label>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 1.5 }}>
-                Students: your own name. Parents: your child's name. Your teacher checks this before your account is opened.
-              </div>
-              <Input C={C} value={child} onChange={(e) => setChild(e.target.value)} placeholder="Student's name" style={{ marginTop: 6 }} />
-            </div>
-
-            {err ? <div style={{ color: C.warn, fontSize: 13, marginTop: 12 }}>{err}</div> : null}
-
-            <Button C={C} onClick={send} disabled={busy} style={{ marginTop: 18, width: "100%", opacity: busy ? 0.6 : 1 }}>
+            <Button C={C} onClick={send} disabled={busy} style={{ marginTop: 16, width: "100%", opacity: busy ? 0.6 : 1 }}>
               {busy ? "Sending…" : "Email me a sign-in link"}
             </Button>
+
+            <p style={{ fontSize: 14, color: C.muted, marginTop: 18, textAlign: "center" }}>
+              New here? <Link href="/signup" style={{ color: C.accent }}>Register</Link>
+            </p>
           </Card>
         )}
 
+        <InstallPrompt C={C} />
         <Footer C={C} />
       </div>
     </div>
