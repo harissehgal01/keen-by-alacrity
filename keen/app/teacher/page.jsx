@@ -27,14 +27,19 @@ export default function Teacher() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
   const [newName, setNewName] = useState("");
+  const [homework, setHomework] = useState([]);
+  const [hwTitle, setHwTitle] = useState({});
+  const [hwDue, setHwDue] = useState({});
 
   const load = useCallback(async () => {
-    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }] = await Promise.all([
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }] = await Promise.all([
       sb().from("students").select("*").eq("active", true).order("name"),
       sb().from("day_records").select("*"),
       sb().from("weekly_bucks").select("*"),
       sb().from("profiles").select("*").order("created_at"),
+      sb().from("homework").select("*").order("due_date", { nullsFirst: false }),
     ]);
+    setHomework(hw || []);
     setStudents(st || []);
     const map = {};
     (recs || []).forEach((r) => { map[`${r.student_id}|${r.on_date}`] = r; });
@@ -91,6 +96,30 @@ export default function Teacher() {
     await sb().from("students").insert({ name: n });
     setNewName(""); await load();
   };
+  const addHomework = async (sid) => {
+    const title = (hwTitle[sid] || "").trim();
+    if (!title) return;
+    setStatus("Saving…");
+    const { error } = await sb().from("homework").insert({
+      student_id: sid, title, set_on: date, due_date: hwDue[sid] || null,
+    });
+    setHwTitle((t) => ({ ...t, [sid]: "" }));
+    setHwDue((d) => ({ ...d, [sid]: "" }));
+    setStatus(error ? "Did NOT save — try again." : "Saved");
+    await load();
+  };
+
+  const toggleHomework = async (item) => {
+    setHomework((h) => h.map((x) => (x.id === item.id ? { ...x, done: !x.done } : x)));
+    const { error } = await sb().from("homework").update({ done: !item.done }).eq("id", item.id);
+    if (error) { setStatus("Did NOT save — try again."); await load(); }
+  };
+
+  const removeHomework = async (id) => {
+    await sb().from("homework").delete().eq("id", id);
+    await load();
+  };
+
   const signOut = async () => { await sb().auth.signOut(); router.replace("/login"); };
 
   if (loading) {
@@ -308,6 +337,52 @@ export default function Teacher() {
                         <ScoreRow C={C} label="Bonus or penalty" hint="Extra effort, or points lost" signed value={r.bonus || 0}
                           onMinus={() => bump(s.id, "bonus", -1, -10, 10)} onPlus={() => bump(s.id, "bonus", 1, -10, 10)} />
 
+
+                        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                            <span style={{ fontSize: 14.5, fontWeight: 600 }}>Homework</span>
+                            <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}>
+                              {homework.filter((h) => h.student_id === s.id && !h.done).length} outstanding
+                            </span>
+                          </div>
+
+                          {homework.filter((h) => h.student_id === s.id).length === 0 ? (
+                            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>Nothing set yet.</div>
+                          ) : (
+                            homework.filter((h) => h.student_id === s.id).map((h) => (
+                              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
+                                <button onClick={() => toggleHomework(h)} aria-label={h.done ? "Mark not done" : "Mark done"}
+                                  style={{ width: 22, height: 22, flexShrink: 0, marginTop: 1, borderRadius: 6,
+                                    background: h.done ? C.accent : "transparent",
+                                    border: `1px solid ${h.done ? C.accent : C.line}`,
+                                    color: C.onAccent, fontSize: 13, lineHeight: 1 }}>
+                                  {h.done ? "\u2713" : ""}
+                                </button>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 14, textDecoration: h.done ? "line-through" : "none", color: h.done ? C.muted : C.ink }}>
+                                    {h.title}
+                                  </div>
+                                  <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 2 }}>
+                                    {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`}
+                                    {h.done ? " · done" : ""}
+                                  </div>
+                                </div>
+                                <button onClick={() => removeHomework(h.id)}
+                                  style={{ background: "transparent", color: C.muted, fontSize: 12 }}>Delete</button>
+                              </div>
+                            ))
+                          )}
+
+                          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                            <Input C={C} value={hwTitle[s.id] || ""} placeholder="Set homework…"
+                              onChange={(e) => setHwTitle((t) => ({ ...t, [s.id]: e.target.value }))}
+                              onKeyDown={(e) => e.key === "Enter" && addHomework(s.id)} style={{ fontSize: 14 }} />
+                            <input type="date" value={hwDue[s.id] || ""}
+                              onChange={(e) => setHwDue((d) => ({ ...d, [s.id]: e.target.value }))}
+                              style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, color: C.ink, padding: "10px 8px", fontSize: 13, fontFamily: "inherit" }} />
+                            <Button C={C} onClick={() => addHomework(s.id)} style={{ padding: "0 16px", fontSize: 14 }}>Set</Button>
+                          </div>
+                        </div>
                         <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${C.line}`, marginTop: 10 }}>
                           <span style={{ fontSize: 13, color: C.muted }}>Day total</span>
                           <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.accent }}>{points(r)} / {MAXDAY}</span>

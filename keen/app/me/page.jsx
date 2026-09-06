@@ -15,6 +15,7 @@ export default function Me() {
   const [student, setStudent] = useState(null);
   const [records, setRecords] = useState({});
   const [bucks, setBucks] = useState([]);
+  const [homework, setHomework] = useState([]);
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -28,11 +29,13 @@ export default function Me() {
       if (profile?.role === "admin") return router.replace("/teacher");
       if (!profile || !profile.student_id) return router.replace("/pending");
 
-      const [{ data: s }, { data: recs }, { data: wb }] = await Promise.all([
+      const [{ data: s }, { data: recs }, { data: wb }, { data: hw }] = await Promise.all([
         sb().from("students").select("*").eq("id", profile.student_id).single(),
         sb().from("day_records").select("*").eq("student_id", profile.student_id),
         sb().from("weekly_bucks").select("*").eq("student_id", profile.student_id),
+        sb().from("homework").select("*").eq("student_id", profile.student_id).order("due_date", { nullsFirst: false }),
       ]);
+      setHomework(hw || []);
       setStudent(s);
       const byDate = {};
       (recs || []).forEach((r) => { byDate[r.on_date] = r; });
@@ -146,6 +149,38 @@ export default function Me() {
           </div>
         </Card>
 
+
+        {homework.length ? (
+          <Card C={C} style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Homework</h3>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>
+                {homework.filter((h) => !h.done).length} to do
+              </span>
+            </div>
+            {homework.map((h) => (
+              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12 }}>
+                <span style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2, borderRadius: 6,
+                  background: h.done ? C.accent : "transparent", border: `1px solid ${h.done ? C.accent : C.line}`,
+                  color: C.onAccent, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {h.done ? "\u2713" : ""}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, textDecoration: h.done ? "line-through" : "none", color: h.done ? C.muted : C.ink }}>
+                    {h.title}
+                  </div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, color: h.done ? C.muted : (h.due_date && h.due_date < iso(new Date()) ? C.warn : C.muted), marginTop: 2 }}>
+                    {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`}
+                    {h.done ? " · done" : h.due_date && h.due_date < iso(new Date()) ? " · overdue" : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 14, lineHeight: 1.5 }}>
+              Ticks are set by your teacher, not here.
+            </div>
+          </Card>
+        ) : null}
         <Card C={C} style={{ marginTop: 12 }}>
           <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Electricity Bucks</h3>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 10 }}>
