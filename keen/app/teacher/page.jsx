@@ -329,12 +329,26 @@ export default function Teacher() {
                   <Card C={C} style={{ marginTop: 12 }}>
                     <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>Homework</h3>
                     {sHw.length === 0 ? <p style={{ fontSize: 13.5, color: C.muted, marginTop: 8 }}>Nothing set.</p> :
-                      sHw.map((h) => (
-                        <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, marginTop: 8 }}>
-                          <span>{h.title}</span>
-                          <span style={{ color: C.muted, fontFamily: MONO, fontSize: 11 }}>{h.status}</span>
-                        </div>
-                      ))}
+                      sHw.map((h) => {
+                        const badge = h.status === "done" ? { l: "Done", c: C.accent }
+                          : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
+                          : { l: "Not done", c: C.muted };
+                        const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
+                        return (
+                          <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
+                                {h.title}
+                              </div>
+                              <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
+                                {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`} · {badge.l}
+                                {overdue ? " · overdue" : ""}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                   </Card>
 
                   <Card C={C} style={{ marginTop: 12 }}>
