@@ -206,7 +206,7 @@ export default function Me() {
                       {h.title}
                     </div>
                     <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
-                      {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`} · {badge.l}
+                      {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`} · {badge.l}
                       {overdue ? " · overdue" : ""}
                     </div>
                   </div>
