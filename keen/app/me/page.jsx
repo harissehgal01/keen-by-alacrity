@@ -12,10 +12,11 @@ import {
 export default function Me() {
   const { C, dark, setDark } = useTheme();
   const router = useRouter();
-  const [student, setStudent] = useState(null);
-  const [records, setRecords] = useState({});
-  const [bucks, setBucks] = useState([]);
-  const [homework, setHomework] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [childId, setChildId] = useState(null);
+  const [recordsByStudent, setRecordsByStudent] = useState({});
+  const [bucksByStudent, setBucksByStudent] = useState({});
+  const [homeworkByStudent, setHomeworkByStudent] = useState({});
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -28,23 +29,45 @@ export default function Me() {
       const { data: profile } = await sb()
         .from("profiles").select("role, student_id").eq("id", session.user.id).single();
       if (profile?.role === "admin") return router.replace("/teacher");
-      if (!profile || !profile.student_id) return router.replace("/pending");
+      if (!profile) return router.replace("/pending");
 
-      const [{ data: s }, { data: recs }, { data: wb }, { data: hw }] = await Promise.all([
-        sb().from("students").select("*").eq("id", profile.student_id).single(),
-        sb().from("day_records").select("*").eq("student_id", profile.student_id),
-        sb().from("weekly_bucks").select("*").eq("student_id", profile.student_id),
-        sb().from("homework").select("*").eq("student_id", profile.student_id).order("due_date", { nullsFirst: false }),
+      const { data: idRows } = await sb().rpc("my_student_ids");
+      const ids = (idRows || []).map((r) => (typeof r === "string" ? r : r.my_student_ids)).filter(Boolean);
+      if (!ids.length) return router.replace("/pending");
+
+      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }] = await Promise.all([
+        sb().from("students").select("*").in("id", ids),
+        sb().from("day_records").select("*").in("student_id", ids),
+        sb().from("weekly_bucks").select("*").in("student_id", ids),
+        sb().from("homework").select("*").in("student_id", ids).order("due_date", { nullsFirst: false }),
       ]);
-      setHomework(hw || []);
-      setStudent(s);
-      const byDate = {};
-      (recs || []).forEach((r) => { byDate[r.on_date] = r; });
-      setRecords(byDate);
-      setBucks(wb || []);
+
+      setStudents(st || []);
+      setChildId((st && st[0]) ? st[0].id : ids[0]);
+
+      const recMap = {};
+      (recs || []).forEach((r) => {
+        recMap[r.student_id] = recMap[r.student_id] || {};
+        recMap[r.student_id][r.on_date] = r;
+      });
+      setRecordsByStudent(recMap);
+
+      const buckMap = {};
+      (wb || []).forEach((b) => { (buckMap[b.student_id] = buckMap[b.student_id] || []).push(b); });
+      setBucksByStudent(buckMap);
+
+      const hwMap = {};
+      (hw || []).forEach((h) => { (hwMap[h.student_id] = hwMap[h.student_id] || []).push(h); });
+      setHomeworkByStudent(hwMap);
+
       setLoading(false);
     })();
   }, [router]);
+
+  const student = students.find((s) => s.id === childId) || null;
+  const records = recordsByStudent[childId] || {};
+  const bucks = bucksByStudent[childId] || [];
+  const homework = homeworkByStudent[childId] || [];
 
   const signOut = async () => { await sb().auth.signOut(); router.replace("/login"); };
 
@@ -82,6 +105,21 @@ export default function Me() {
             <button onClick={signOut} style={{ background: "transparent", color: C.muted, fontSize: 13, fontWeight: 600 }}>Sign out</button>
           </div>
         </div>
+
+        {students.length > 1 ? (
+          <div style={{ display: "flex", gap: 6, marginTop: 18, flexWrap: "wrap" }}>
+            {students.map((s) => {
+              const on = s.id === childId;
+              return (
+                <button key={s.id} onClick={() => setChildId(s.id)}
+                  style={{ background: on ? C.accent : "transparent", color: on ? C.onAccent : C.ink,
+                    border: `1px solid ${on ? C.accent : C.line}`, borderRadius: 999, padding: "8px 16px", fontSize: 13.5, fontWeight: 500 }}>
+                  {s.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         <h1 style={{ fontFamily: DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1, margin: "18px 0 0" }}>
           {student?.name}
