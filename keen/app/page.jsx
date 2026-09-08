@@ -12,7 +12,7 @@ export default function Home() {
       const { data: profile } = await sb()
         .from("profiles").select("role").eq("id", session.user.id).single();
       if (profile?.role === "admin") router.replace("/teacher");
-      else if (profile?.role === "student" || profile?.role === "parent") router.replace("/me");
+      else if (profile?.role === "student" || profile?.role === "parent") router.replace("/feed");
       else router.replace("/pending");
     })();
   }, [router]);
