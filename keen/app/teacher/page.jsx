@@ -5,7 +5,7 @@ import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button, Input, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
 import {
-  DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
+  DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay,
   BUCKS_PER_WEEK, RUPEES_PER_BUCK,
 } from "../../lib/theme";
 
@@ -23,6 +23,7 @@ export default function Teacher() {
   const [open, setOpen] = useState(null);
   const [view, setView] = useState("day");
   const [tab, setTab] = useState("score");
+  const [previewId, setPreviewId] = useState(null);
   const [showCal, setShowCal] = useState(true);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
@@ -96,12 +97,17 @@ export default function Teacher() {
     await sb().from("students").insert({ name: n });
     setNewName(""); await load();
   };
+
+  const renameStudent = async (id, field, value) => {
+    const { error } = await sb().from("students").update({ [field]: value }).eq("id", id);
+    if (error) { setStatus("Did NOT save the name — try again."); await load(); }
+  };
   const addHomework = async (sid) => {
     const title = (hwTitle[sid] || "").trim();
     if (!title) return;
     setStatus("Saving…");
     const { error } = await sb().from("homework").insert({
-      student_id: sid, title, set_on: date, due_date: hwDue[sid] || null,
+      student_id: sid, title, set_on: date, due_date: hwDue[sid] || nextDay(date),
     });
     setHwTitle((t) => ({ ...t, [sid]: "" }));
     setHwDue((d) => ({ ...d, [sid]: "" }));
@@ -109,9 +115,9 @@ export default function Teacher() {
     await load();
   };
 
-  const toggleHomework = async (item) => {
-    setHomework((h) => h.map((x) => (x.id === item.id ? { ...x, done: !x.done } : x)));
-    const { error } = await sb().from("homework").update({ done: !item.done }).eq("id", item.id);
+  const setHomeworkStatus = async (item, status) => {
+    setHomework((h) => h.map((x) => (x.id === item.id ? { ...x, status } : x)));
+    const { error } = await sb().from("homework").update({ status }).eq("id", item.id);
     if (error) { setStatus("Did NOT save — try again."); await load(); }
   };
 
@@ -242,13 +248,102 @@ export default function Teacher() {
               </div>
               {students.map((s) => (
                 <div key={s.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
-                  <div style={{ fontSize: 15 }}>{s.name}</div>
-                  <div style={{ fontSize: 12.5, color: C.muted }}>{s.schedule || "No schedule set"}</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <Input C={C} value={s.name}
+                      onChange={(e) => setStudents((all) => all.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)))}
+                      onBlur={(e) => renameStudent(s.id, "name", e.target.value)}
+                      style={{ fontSize: 15 }} />
+                    <button onClick={() => { setTab("score"); setPreviewId(s.id); }}
+                      style={{ background: "transparent", color: C.accent, border: `1px solid ${C.line}`, borderRadius: 8, padding: "9px 12px", fontSize: 12.5, fontWeight: 500, whiteSpace: "nowrap" }}>
+                      View as parent
+                    </button>
+                  </div>
+                  <Input C={C} value={s.schedule || ""} placeholder="Schedule, e.g. Mon–Fri · 4:30–5:30 pm"
+                    onChange={(e) => setStudents((all) => all.map((x) => (x.id === s.id ? { ...x, schedule: e.target.value } : x)))}
+                    onBlur={(e) => renameStudent(s.id, "schedule", e.target.value)}
+                    style={{ fontSize: 12.5, marginTop: 6, color: C.muted }} />
                 </div>
               ))}
             </Card>
             <InstallPrompt C={C} />
         <Footer C={C} />
+          </div>
+        ) : previewId ? (
+          <div style={{ marginTop: 16 }}>
+            {(() => {
+              const s = students.find((x) => x.id === previewId);
+              if (!s) return null;
+              const keys = Object.keys(records).filter((k) => k.startsWith(`${s.id}|`));
+              const monthKeys = keys.filter((k) => inMonth(k.split("|")[1]));
+              const monthPts = monthKeys.reduce((a, k) => a + points(records[k]), 0);
+              const a = attStats(s.id);
+              const r = rec(s.id);
+              const sHw = homework.filter((h) => h.student_id === s.id);
+              const sBucks = bucks.filter((b) => b.student_id === s.id);
+              const totalBucks = sBucks.reduce((a2, b) => a2 + Number(b.bucks), 0);
+              const totalRupees = sBucks.reduce((a2, b) => a2 + Number(b.rupees), 0);
+              return (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: ".08em", textTransform: "uppercase", color: C.muted }}>
+                      Viewing as {s.name}'s parent
+                    </div>
+                    <button onClick={() => setPreviewId(null)} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>
+                      Back to scoring
+                    </button>
+                  </div>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, letterSpacing: "-0.01em", margin: "10px 0 0" }}>{s.name}</h2>
+                  {s.schedule ? <div style={{ fontSize: 13.5, color: C.muted, marginTop: 4 }}>{s.schedule}</div> : null}
+
+                  <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                    <div style={{ flex: 1, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 12px 14px" }}>
+                      <div style={{ fontSize: 10.5, color: C.muted }}>Points in {MONTHS[cursor.m].slice(0, 3)}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, color: C.accent }}>{monthPts}</div>
+                    </div>
+                    <div style={{ flex: 1, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 12px 14px" }}>
+                      <div style={{ fontSize: 10.5, color: C.muted }}>Attendance</div>
+                      <div style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700 }}>{a.pct}%</div>
+                    </div>
+                  </div>
+
+                  <Card C={C} style={{ marginTop: 12 }}>
+                    <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>{pretty(date)}</h3>
+                    {CATS.map((c) => (
+                      <div key={c.key} style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, marginTop: 8 }}>
+                        <span>{c.label}</span>
+                        <span style={{ fontFamily: MONO, color: C.muted }}>{(r[c.key] || 0)} × {c.weight} = {(r[c.key] || 0) * c.weight}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+                      <span style={{ fontSize: 13, color: C.muted }}>Day total</span>
+                      <span style={{ fontFamily: MONO, fontWeight: 700, color: C.accent }}>{points(r)} / {MAXDAY}</span>
+                    </div>
+                  </Card>
+
+                  <Card C={C} style={{ marginTop: 12 }}>
+                    <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>Homework</h3>
+                    {sHw.length === 0 ? <p style={{ fontSize: 13.5, color: C.muted, marginTop: 8 }}>Nothing set.</p> :
+                      sHw.map((h) => (
+                        <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, marginTop: 8 }}>
+                          <span>{h.title}</span>
+                          <span style={{ color: C.muted, fontFamily: MONO, fontSize: 11 }}>{h.status}</span>
+                        </div>
+                      ))}
+                  </Card>
+
+                  <Card C={C} style={{ marginTop: 12 }}>
+                    <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>
+                    <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, color: C.accent, marginTop: 8 }}>
+                      {totalBucks} <span style={{ fontSize: 15, color: C.muted, fontWeight: 400 }}>= Rs {totalRupees}</span>
+                    </div>
+                  </Card>
+
+                  <p style={{ color: C.muted, fontSize: 12, marginTop: 16, lineHeight: 1.6 }}>
+                    This is exactly what {s.name}'s parent sees when they sign in — read only, no editing here.
+                  </p>
+                </>
+              );
+            })()}
           </div>
         ) : (
           <>
@@ -342,7 +437,7 @@ export default function Teacher() {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                             <span style={{ fontSize: 14.5, fontWeight: 600 }}>Homework</span>
                             <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}>
-                              {homework.filter((h) => h.student_id === s.id && !h.done).length} outstanding
+                              {homework.filter((h) => h.student_id === s.id && h.status !== "done").length} outstanding
                             </span>
                           </div>
 
@@ -350,25 +445,32 @@ export default function Teacher() {
                             <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>Nothing set yet.</div>
                           ) : (
                             homework.filter((h) => h.student_id === s.id).map((h) => (
-                              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
-                                <button onClick={() => toggleHomework(h)} aria-label={h.done ? "Mark not done" : "Mark done"}
-                                  style={{ width: 22, height: 22, flexShrink: 0, marginTop: 1, borderRadius: 6,
-                                    background: h.done ? C.accent : "transparent",
-                                    border: `1px solid ${h.done ? C.accent : C.line}`,
-                                    color: C.onAccent, fontSize: 13, lineHeight: 1 }}>
-                                  {h.done ? "\u2713" : ""}
-                                </button>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 14, textDecoration: h.done ? "line-through" : "none", color: h.done ? C.muted : C.ink }}>
-                                    {h.title}
+                              <div key={h.id} style={{ marginTop: 12 }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
+                                      {h.title}
+                                    </div>
+                                    <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 2 }}>
+                                      {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`}
+                                    </div>
                                   </div>
-                                  <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 2 }}>
-                                    {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`}
-                                    {h.done ? " · done" : ""}
-                                  </div>
+                                  <button onClick={() => removeHomework(h.id)}
+                                    style={{ background: "transparent", color: C.muted, fontSize: 12 }}>Delete</button>
                                 </div>
-                                <button onClick={() => removeHomework(h.id)}
-                                  style={{ background: "transparent", color: C.muted, fontSize: 12 }}>Delete</button>
+                                <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                                  {[["not_done", "Not done"], ["partial", "Partial"], ["done", "Done"]].map(([st, l]) => {
+                                    const on = h.status === st;
+                                    const c = st === "done" ? C.accent : st === "partial" ? "#B8860B" : C.muted;
+                                    return (
+                                      <button key={st} onClick={() => setHomeworkStatus(h, st)}
+                                        style={{ flex: 1, background: on ? c : "transparent", color: on ? "#FFFFFF" : C.ink,
+                                          border: `1px solid ${on ? c : C.line}`, borderRadius: 999, padding: "6px 0", fontSize: 11.5, fontWeight: 500 }}>
+                                        {l}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             ))
                           )}
@@ -395,7 +497,7 @@ export default function Teacher() {
             </div>
 
             <Card C={C} style={{ marginTop: 20 }}>
-              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Electricity Bucks</h3>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>
               <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
                 Each week's winner earns {BUCKS_PER_WEEK} bucks · 1 buck = Rs {RUPEES_PER_BUCK} · ties split the bucks
               </div>
