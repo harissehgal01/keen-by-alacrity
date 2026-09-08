@@ -312,6 +312,27 @@ export default function Teacher() {
                     </div>
                   </div>
 
+                  <div style={{ marginTop: 12 }}>
+                    <Calendar C={C} cursor={cursor} setCursor={setCursor} date={date}
+                      onPick={(d) => { setDate(d); const dt = new Date(d); setCursor({ y: dt.getFullYear(), m: dt.getMonth() }); }}
+                      marks={(k) => {
+                        const rec2 = records[`${s.id}|${k}`];
+                        if (!rec2) return null;
+                        if (rec2.attendance === "absent") return { bg: C.absentBg, dot: C.warn };
+                        if (rec2.attendance === "present" || points(rec2)) return { bg: C.soft, dot: C.accent };
+                        return null;
+                      }} />
+                    <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 12, color: C.muted, flexWrap: "wrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 999, background: C.accent }} />Attended
+                      </span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 999, background: C.warn }} />Missed
+                      </span>
+                      <span>Tap a date to see that day below</span>
+                    </div>
+                  </div>
+
                   <Card C={C} style={{ marginTop: 12 }}>
                     <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>{pretty(date)}</h3>
                     {CATS.map((c) => (
