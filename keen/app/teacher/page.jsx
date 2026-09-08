@@ -33,14 +33,19 @@ export default function Teacher() {
   const [hwTitle, setHwTitle] = useState({});
   const [hwDue, setHwDue] = useState({});
 
+  const [links, setLinks] = useState([]);
+  const [addChildFor, setAddChildFor] = useState(null);
+
   const load = useCallback(async () => {
-    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }] = await Promise.all([
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }] = await Promise.all([
       sb().from("students").select("*").eq("active", true).order("name"),
       sb().from("day_records").select("*"),
       sb().from("weekly_bucks").select("*"),
       sb().from("profiles").select("*").order("created_at"),
       sb().from("homework").select("*").order("due_date", { nullsFirst: false }),
+      sb().from("parent_links").select("*"),
     ]);
+    setLinks(pl || []);
     setHomework(hw || []);
     setStudents(st || []);
     const map = {};
@@ -91,6 +96,16 @@ export default function Teacher() {
 
   const approve = async (profileId, role, studentId) => {
     await sb().from("profiles").update({ role, student_id: studentId }).eq("id", profileId);
+    await load();
+  };
+  const linkChild = async (profileId, studentId) => {
+    if (!studentId) return;
+    await sb().from("parent_links").insert({ profile_id: profileId, student_id: studentId });
+    setAddChildFor(null);
+    await load();
+  };
+  const unlinkChild = async (profileId, studentId) => {
+    await sb().from("parent_links").delete().eq("profile_id", profileId).eq("student_id", studentId);
     await load();
   };
   const addStudent = async () => {
@@ -226,20 +241,56 @@ export default function Teacher() {
 
             <Card C={C} style={{ marginTop: 12 }}>
               <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Approved accounts</h3>
-              {pending.filter((p) => p.role !== "pending").map((p) => (
-                <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12, gap: 10 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5 }}>{p.full_name || p.email}</div>
-                    <div style={{ fontSize: 12, color: C.muted }}>
-                      {p.role} · {students.find((s) => s.id === p.student_id)?.name || (p.role === "admin" ? "all students" : "not linked")}
+              {pending.filter((p) => p.role !== "pending").map((p) => {
+                const extra = links.filter((l) => l.profile_id === p.id).map((l) => students.find((s) => s.id === l.student_id)).filter(Boolean);
+                const allNames = [students.find((s) => s.id === p.student_id), ...extra].filter(Boolean).map((s) => s.name);
+                const linkedIds = new Set([p.student_id, ...extra.map((s) => s.id)]);
+                const linkable = students.filter((s) => !linkedIds.has(s.id));
+                return (
+                  <div key={p.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14.5 }}>{p.full_name || p.email}</div>
+                        <div style={{ fontSize: 12, color: C.muted }}>
+                          {p.role} · {allNames.length ? allNames.join(", ") : (p.role === "admin" ? "all students" : "not linked")}
+                        </div>
+                      </div>
+                      {p.role !== "admin" ? (
+                        <button onClick={() => approve(p.id, "pending", null)}
+                          style={{ background: "transparent", color: C.warn, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>Revoke</button>
+                      ) : null}
                     </div>
+                    {extra.length ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                        {extra.map((s) => (
+                          <span key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, background: C.soft, color: C.deep, borderRadius: 999, padding: "4px 10px", fontSize: 12 }}>
+                            {s.name}
+                            <button onClick={() => unlinkChild(p.id, s.id)} style={{ background: "transparent", color: C.deep, fontSize: 12, lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {p.role === "parent" && linkable.length ? (
+                      addChildFor === p.id ? (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                          {linkable.map((s) => (
+                            <button key={s.id} onClick={() => linkChild(p.id, s.id)}
+                              style={{ background: "transparent", color: C.accent, border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 12px", fontSize: 12 }}>
+                              + {s.name}
+                            </button>
+                          ))}
+                          <button onClick={() => setAddChildFor(null)} style={{ background: "transparent", color: C.muted, fontSize: 12 }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setAddChildFor(p.id)}
+                          style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 8 }}>
+                          + Link another child
+                        </button>
+                      )
+                    ) : null}
                   </div>
-                  {p.role !== "admin" ? (
-                    <button onClick={() => approve(p.id, "pending", null)}
-                      style={{ background: "transparent", color: C.warn, fontSize: 13, fontWeight: 600 }}>Revoke</button>
-                  ) : null}
-                </div>
-              ))}
+                );
+              })}
             </Card>
 
             <Card C={C} style={{ marginTop: 12 }}>
