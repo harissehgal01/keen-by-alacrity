@@ -19,6 +19,7 @@ export default function Me() {
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
+  const [showCal, setShowCal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -92,6 +93,39 @@ export default function Me() {
           <Stat C={C} label="Attendance" value={`${pct}%`} />
         </div>
 
+        <Card C={C} style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Recent activity</h3>
+            <button onClick={() => setShowCal(!showCal)} style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 600 }}>
+              {showCal ? "Hide calendar" : "View calendar"}
+            </button>
+          </div>
+          {Object.keys(records).sort().reverse().slice(0, 8).length === 0 ? (
+            <p style={{ fontSize: 13.5, color: C.muted, marginTop: 10 }}>Nothing logged yet — check back after your next class.</p>
+          ) : (
+            Object.keys(records).sort().reverse().slice(0, 8).map((k) => {
+              const r = records[k];
+              const pts = points(r);
+              const sel = k === date;
+              return (
+                <button key={k} onClick={() => setDate(k)}
+                  style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 0", borderTop: `1px solid ${C.line}`, background: sel ? C.soft : "transparent",
+                    borderRadius: sel ? 8 : 0, marginTop: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                    background: r.attendance === "absent" ? C.warn : r.attendance === "present" || pts ? C.accent : C.dim }} />
+                  <span style={{ flex: 1, fontSize: 14 }}>{pretty(k)}</span>
+                  <span style={{ fontSize: 12, color: C.muted }}>
+                    {r.attendance === "present" ? "Present" : r.attendance === "absent" ? "Absent" : r.attendance === "no_class" ? "No class" : ""}
+                  </span>
+                  <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.accent, width: 30, textAlign: "right" }}>{pts}</span>
+                </button>
+              );
+            })
+          )}
+        </Card>
+
+        {showCal && (
         <div style={{ marginTop: 12 }}>
           <Calendar C={C} cursor={cursor} setCursor={setCursor} date={date} onPick={setDate}
             marks={(k) => {
@@ -111,6 +145,7 @@ export default function Me() {
             <span>Tap a date to see that day</span>
           </div>
         </div>
+        )}
 
         <Card C={C} style={{ marginTop: 12 }}>
           <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>{pretty(date)}</h3>
@@ -158,31 +193,33 @@ export default function Me() {
                 {homework.filter((h) => !h.done).length} to do
               </span>
             </div>
-            {homework.map((h) => (
-              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12 }}>
-                <span style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2, borderRadius: 6,
-                  background: h.done ? C.accent : "transparent", border: `1px solid ${h.done ? C.accent : C.line}`,
-                  color: C.onAccent, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {h.done ? "\u2713" : ""}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, textDecoration: h.done ? "line-through" : "none", color: h.done ? C.muted : C.ink }}>
-                    {h.title}
-                  </div>
-                  <div style={{ fontFamily: MONO, fontSize: 11, color: h.done ? C.muted : (h.due_date && h.due_date < iso(new Date()) ? C.warn : C.muted), marginTop: 2 }}>
-                    {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`}
-                    {h.done ? " · done" : h.due_date && h.due_date < iso(new Date()) ? " · overdue" : ""}
+            {homework.map((h) => {
+              const badge = h.status === "done" ? { l: "Done", c: C.accent }
+                : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
+                : { l: "Not done", c: C.muted };
+              const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
+              return (
+                <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
+                      {h.title}
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
+                      {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`} · {badge.l}
+                      {overdue ? " · overdue" : ""}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div style={{ fontSize: 12, color: C.muted, marginTop: 14, lineHeight: 1.5 }}>
-              Ticks are set by your teacher, not here.
+              Status is set by your teacher, not here.
             </div>
           </Card>
         ) : null}
         <Card C={C} style={{ marginTop: 12 }}>
-          <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Electricity Bucks</h3>
+          <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 10 }}>
             <span style={{ fontFamily: MONO, fontSize: 34, fontWeight: 700, color: C.accent }}>{totalBucks}</span>
             <span style={{ fontSize: 15, color: C.muted }}>= Rs {totalRupees}</span>
