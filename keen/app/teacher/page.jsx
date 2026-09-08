@@ -24,6 +24,7 @@ export default function Teacher() {
   const [view, setView] = useState("day");
   const [tab, setTab] = useState("score");
   const [previewId, setPreviewId] = useState(null);
+  const [previewAs, setPreviewAs] = useState("parent");
   const [showCal, setShowCal] = useState(true);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
@@ -69,6 +70,7 @@ export default function Teacher() {
       student_id: sid, on_date: date,
       work: current.work || 0, behaviour: current.behaviour || 0, obedience: current.obedience || 0,
       phone: current.phone || 0, seat: current.seat || 0, homework: current.homework || 0,
+      punctuality: current.punctuality || 0,
       bonus: current.bonus || 0, attendance: current.attendance ?? null,
       ...patch, updated_at: new Date().toISOString(),
     };
@@ -253,9 +255,13 @@ export default function Teacher() {
                       onChange={(e) => setStudents((all) => all.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)))}
                       onBlur={(e) => renameStudent(s.id, "name", e.target.value)}
                       style={{ fontSize: 15 }} />
-                    <button onClick={() => { setTab("score"); setPreviewId(s.id); }}
-                      style={{ background: "transparent", color: C.accent, border: `1px solid ${C.line}`, borderRadius: 8, padding: "9px 12px", fontSize: 12.5, fontWeight: 500, whiteSpace: "nowrap" }}>
+                    <button onClick={() => { setTab("score"); setPreviewId(s.id); setPreviewAs("parent"); }}
+                      style={{ background: "transparent", color: C.accent, border: `1px solid ${C.line}`, borderRadius: 8, padding: "9px 10px", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap" }}>
                       View as parent
+                    </button>
+                    <button onClick={() => { setTab("score"); setPreviewId(s.id); setPreviewAs("student"); }}
+                      style={{ background: "transparent", color: C.accent, border: `1px solid ${C.line}`, borderRadius: 8, padding: "9px 10px", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap" }}>
+                      View as student
                     </button>
                   </div>
                   <Input C={C} value={s.schedule || ""} placeholder="Schedule, e.g. Mon–Fri · 4:30–5:30 pm"
@@ -286,7 +292,7 @@ export default function Teacher() {
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: ".08em", textTransform: "uppercase", color: C.muted }}>
-                      Viewing as {s.name}'s parent
+                      Viewing as {s.name}{previewAs === "student" ? " (student login)" : "'s parent"}
                     </div>
                     <button onClick={() => setPreviewId(null)} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>
                       Back to scoring
@@ -339,7 +345,8 @@ export default function Teacher() {
                   </Card>
 
                   <p style={{ color: C.muted, fontSize: 12, marginTop: 16, lineHeight: 1.6 }}>
-                    This is exactly what {s.name}'s parent sees when they sign in — read only, no editing here.
+                    This is exactly what {s.name}{previewAs === "student" ? " sees signing in as a student" : "'s parent sees signing in"} — read only, no editing here.
+                    The student and parent views currently show identical content.
                   </p>
                 </>
               );
@@ -452,7 +459,7 @@ export default function Teacher() {
                                       {h.title}
                                     </div>
                                     <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 2 }}>
-                                      {h.due_date ? `Due ${pretty(h.due_date)}` : `Set ${pretty(h.set_on)}`}
+                                      {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`}
                                     </div>
                                   </div>
                                   <button onClick={() => removeHomework(h.id)}
