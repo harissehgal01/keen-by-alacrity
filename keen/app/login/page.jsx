@@ -8,10 +8,26 @@ import { DISPLAY, MONO } from "../../lib/theme";
 
 export default function Login() {
   const { C, dark, setDark } = useTheme();
+  const [mode, setMode] = useState("email"); // "email" | "student"
   const [email, setEmail] = useState("");
+  const [uname, setUname] = useState("");
+  const [pin, setPin] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  const studentSignIn = async () => {
+    const u = uname.trim().toLowerCase();
+    const p = pin.trim();
+    if (!u || !p) return setErr("Enter your username and PIN.");
+    setBusy(true); setErr("");
+    const { data: loginEmail, error: lookupErr } = await sb().rpc("student_login_email", { p_username: u });
+    if (lookupErr || !loginEmail) { setBusy(false); return setErr("That username isn't set up yet. Check with your teacher."); }
+    const { error } = await sb().auth.signInWithPassword({ email: loginEmail, password: p });
+    setBusy(false);
+    if (error) setErr("Username or PIN is wrong. Check with your teacher.");
+    else window.location.href = "/";
+  };
 
   const send = async () => {
     const addr = email.trim().toLowerCase();
@@ -51,8 +67,37 @@ export default function Login() {
           Points and attendance for Alacrity Designs students.
         </p>
 
-        {sent ? (
-          <Card C={C} style={{ marginTop: 20 }}>
+        <div style={{ display: "flex", gap: 6, marginTop: 20 }}>
+          {[["email", "Email"], ["student", "Student login"]].map(([k, l]) => (
+            <button key={k} onClick={() => { setMode(k); setErr(""); }}
+              style={{ flex: 1, background: mode === k ? C.accent : "transparent", color: mode === k ? C.onAccent : C.ink,
+                border: `1px solid ${mode === k ? C.accent : C.line}`, borderRadius: 999, padding: "9px 0", fontSize: 13.5, fontWeight: 500 }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {mode === "student" ? (
+          <Card C={C} style={{ marginTop: 14 }}>
+            <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 14px", lineHeight: 1.5 }}>
+              For students without their own email. Ask your teacher for your username and PIN.
+            </p>
+            <label style={{ fontSize: 13.5, fontWeight: 600 }}>Username</label>
+            <Input C={C} value={uname} onChange={(e) => setUname(e.target.value)} placeholder="e.g. haroon" style={{ marginTop: 6 }} />
+            <div style={{ marginTop: 14 }}>
+              <label style={{ fontSize: 13.5, fontWeight: 600 }}>PIN</label>
+              <Input C={C} type="password" inputMode="numeric" value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && studentSignIn()}
+                placeholder="1234" style={{ marginTop: 6 }} />
+            </div>
+            {err ? <div style={{ color: C.warn, fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{err}</div> : null}
+            <Button C={C} onClick={studentSignIn} disabled={busy} style={{ marginTop: 16, width: "100%", opacity: busy ? 0.6 : 1 }}>
+              {busy ? "Signing in…" : "Sign in"}
+            </Button>
+          </Card>
+        ) : sent ? (
+          <Card C={C} style={{ marginTop: 14 }}>
             <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: ".08em", textTransform: "uppercase", color: C.accent }}>
               Check your inbox
             </div>
@@ -63,7 +108,7 @@ export default function Login() {
             <Button C={C} variant="secondary" onClick={() => setSent(false)}>Back</Button>
           </Card>
         ) : (
-          <Card C={C} style={{ marginTop: 20 }}>
+          <Card C={C} style={{ marginTop: 14 }}>
             <GoogleButton C={C} />
             <Divider C={C} />
 
