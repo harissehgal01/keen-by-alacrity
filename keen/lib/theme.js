@@ -37,6 +37,11 @@ export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 export const fromIso = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
 export const pretty = (s) => { const d = fromIso(s); return `${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`; };
+export const nextDay = (s) => {
+  const d = fromIso(s);
+  return iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+};
+
 export const mondayOf = (s) => {
   const d = fromIso(s);
   return iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)));
