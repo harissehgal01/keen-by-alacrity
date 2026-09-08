@@ -18,14 +18,16 @@ export const MONO = "'Space Mono', monospace";
 
 export const CATS = [
   { key: "work", label: "Work completed", weight: 3, hint: "Tasks finished today" },
-  { key: "behaviour", label: "Behaviour", weight: 3, hint: "Respect, listening, calm" },
-  { key: "obedience", label: "Follows instructions", weight: 2, hint: "Does what's asked, first time" },
-  { key: "phone", label: "Phone put away", weight: 2, hint: "5 = never out, 0 = out all lesson" },
-  { key: "seat", label: "Stays at desk", weight: 2, hint: "Asks before leaving the table" },
-  { key: "homework", label: "Homework & punctuality", weight: 1, hint: "On time, prepared" },
+  { key: "behaviour", label: "Behaviour", weight: 2, hint: "Respect, listening, calm" },
+  { key: "obedience", label: "Follows instructions", weight: 1, hint: "Does what's asked, first time" },
+  { key: "phone", label: "Phone put away", weight: 1, hint: "5 = never out, 0 = out all lesson" },
+  { key: "seat", label: "Stays at desk", weight: 1, hint: "Asks before leaving the table" },
+  { key: "homework", label: "Homework", weight: 1, hint: "Completed the set homework" },
+  { key: "punctuality", label: "Punctuality", weight: 1, hint: "On time, prepared to start" },
 ];
+// Weights sum to 10, so a perfect day is exactly 50 - bonus (up to 10) sits outside that.
 export const MAXDAY = CATS.reduce((a, c) => a + c.weight * 5, 0);
-export const BLANK = { work: 0, behaviour: 0, obedience: 0, phone: 0, seat: 0, homework: 0, bonus: 0 };
+export const BLANK = { work: 0, behaviour: 0, obedience: 0, phone: 0, seat: 0, homework: 0, punctuality: 0, bonus: 0 };
 export const points = (r) => CATS.reduce((a, c) => a + (r?.[c.key] || 0) * c.weight, 0) + (r?.bonus || 0);
 
 export const BUCKS_PER_WEEK = 10;
