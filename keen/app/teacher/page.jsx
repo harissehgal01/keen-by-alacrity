@@ -35,16 +35,23 @@ export default function Teacher() {
 
   const [links, setLinks] = useState([]);
   const [addChildFor, setAddChildFor] = useState(null);
+  const [rewards, setRewards] = useState([]);
+  const [redemptions, setRedemptions] = useState([]);
+  const [newReward, setNewReward] = useState({ name: "", price: "" });
 
   const load = useCallback(async () => {
-    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }] = await Promise.all([
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }] = await Promise.all([
       sb().from("students").select("*").eq("active", true).order("name"),
       sb().from("day_records").select("*"),
       sb().from("weekly_bucks").select("*"),
       sb().from("profiles").select("*").order("created_at"),
       sb().from("homework").select("*").order("due_date", { nullsFirst: false }),
       sb().from("parent_links").select("*"),
+      sb().from("rewards").select("*").order("price_rupees"),
+      sb().from("redemptions").select("*").order("created_at", { ascending: false }),
     ]);
+    setRewards(rw || []);
+    setRedemptions(rd || []);
     setLinks(pl || []);
     setHomework(hw || []);
     setStudents(st || []);
@@ -106,6 +113,23 @@ export default function Teacher() {
   };
   const unlinkChild = async (profileId, studentId) => {
     await sb().from("parent_links").delete().eq("profile_id", profileId).eq("student_id", studentId);
+    await load();
+  };
+
+  const addReward = async () => {
+    const name = newReward.name.trim();
+    const price = Number(newReward.price);
+    if (!name || !price || price <= 0) return;
+    await sb().from("rewards").insert({ name, price_rupees: price });
+    setNewReward({ name: "", price: "" });
+    await load();
+  };
+  const toggleReward = async (id, active) => {
+    await sb().from("rewards").update({ active: !active }).eq("id", id);
+    await load();
+  };
+  const resolveRedemption = async (id, status) => {
+    await sb().from("redemptions").update({ status, resolved_at: new Date().toISOString() }).eq("id", id);
     await load();
   };
   const addStudent = async () => {
@@ -178,6 +202,8 @@ export default function Teacher() {
     rupees: bucks.filter((b) => b.student_id === s.id && b.week_start !== thisWeek).reduce((a, b) => a + Number(b.rupees), 0),
   })).sort((a, b) => b.bucks - a.bucks);
   const waiting = pending.filter((p) => p.role === "pending");
+  const pendingRedemptions = redemptions.filter((r) => r.status === "requested");
+  const rupeesSpent = (sid) => redemptions.filter((r) => r.student_id === sid && r.status !== "cancelled").reduce((a, r) => a + r.price_rupees, 0);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Inter', sans-serif" }}>
@@ -199,7 +225,7 @@ export default function Teacher() {
         <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>{pretty(date)}</div>
 
         <div style={{ display: "flex", gap: 6, marginTop: 16 }}>
-          {[["score", "Scoring"], ["people", `People${waiting.length ? ` (${waiting.length})` : ""}`]].map(([k, l]) => (
+          {[["score", "Scoring"], ["rewards", `Store${pendingRedemptions.length ? ` (${pendingRedemptions.length})` : ""}`], ["people", `People${waiting.length ? ` (${waiting.length})` : ""}`]].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)}
               style={{ background: tab === k ? C.accent : "transparent", color: tab === k ? C.onAccent : C.ink,
                 border: `1px solid ${tab === k ? C.accent : C.line}`, borderRadius: 999, padding: "8px 16px", fontSize: 13.5, fontWeight: 500 }}>
@@ -208,7 +234,82 @@ export default function Teacher() {
           ))}
         </div>
 
-        {tab === "people" ? (
+        {tab === "rewards" ? (
+          <div style={{ marginTop: 16 }}>
+            <Card C={C}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Pending requests</h3>
+              {pendingRedemptions.length === 0 ? (
+                <p style={{ fontSize: 14, color: C.muted, marginTop: 10 }}>Nobody's asked for anything yet.</p>
+              ) : pendingRedemptions.map((r) => {
+                const s = students.find((x) => x.id === r.student_id);
+                return (
+                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12, gap: 10 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 600 }}>{s?.name || "Unknown"}</div>
+                      <div style={{ fontSize: 13, color: C.muted }}>{r.reward_name} · Rs {r.price_rupees}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => resolveRedemption(r.id, "given")}
+                        style={{ background: C.accent, color: C.onAccent, borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 500 }}>
+                        Given
+                      </button>
+                      <button onClick={() => resolveRedemption(r.id, "cancelled")}
+                        style={{ background: "transparent", color: C.warn, border: `1px solid ${C.line}`, borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 500 }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+
+            <Card C={C} style={{ marginTop: 12 }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Catalog</h3>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <Input C={C} value={newReward.name} placeholder="Item name"
+                  onChange={(e) => setNewReward((v) => ({ ...v, name: e.target.value }))} />
+                <input value={newReward.price} placeholder="Rs" type="number" inputMode="numeric"
+                  onChange={(e) => setNewReward((v) => ({ ...v, price: e.target.value }))}
+                  style={{ width: 90, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, color: C.ink, padding: "10px 10px", fontSize: 15, fontFamily: "inherit" }} />
+                <Button C={C} onClick={addReward} style={{ padding: "0 18px" }}>Add</Button>
+              </div>
+              {rewards.map((r) => (
+                <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
+                  <div>
+                    <span style={{ fontSize: 15, textDecoration: r.active ? "none" : "line-through", color: r.active ? C.ink : C.muted }}>{r.name}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 13, color: C.muted, marginLeft: 10 }}>Rs {r.price_rupees}</span>
+                  </div>
+                  <button onClick={() => toggleReward(r.id, r.active)}
+                    style={{ background: "transparent", color: r.active ? C.warn : C.accent, fontSize: 12.5, fontWeight: 500 }}>
+                    {r.active ? "Retire" : "Restore"}
+                  </button>
+                </div>
+              ))}
+            </Card>
+
+            <Card C={C} style={{ marginTop: 12 }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Spent so far</h3>
+              {students.map((s) => {
+                const spent = rupeesSpent(s.id);
+                if (!spent) return null;
+                return (
+                  <div key={s.id} style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10, fontSize: 14 }}>
+                    <span>{s.name}</span>
+                    <span style={{ fontFamily: MONO, color: C.muted }}>Rs {spent}</span>
+                  </div>
+                );
+              })}
+              {students.every((s) => !rupeesSpent(s.id)) ? (
+                <p style={{ fontSize: 13, color: C.muted, marginTop: 10 }}>Nothing redeemed yet.</p>
+              ) : null}
+            </Card>
+
+            <p style={{ color: C.muted, fontSize: 12, marginTop: 20, lineHeight: 1.6 }}>
+              Students request from what's earned and unspent. "Given" marks it handed over; "Cancel" returns the bucks.
+            </p>
+            <Footer C={C} />
+          </div>
+        ) : tab === "people" ? (
           <div style={{ marginTop: 16 }}>
             <Card C={C}>
               <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Waiting for approval</h3>
