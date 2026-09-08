@@ -17,6 +17,10 @@ export default function Me() {
   const [recordsByStudent, setRecordsByStudent] = useState({});
   const [bucksByStudent, setBucksByStudent] = useState({});
   const [homeworkByStudent, setHomeworkByStudent] = useState({});
+  const [rewards, setRewards] = useState([]);
+  const [redemptionsByStudent, setRedemptionsByStudent] = useState({});
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemErr, setRedeemErr] = useState("");
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -35,12 +39,18 @@ export default function Me() {
       const ids = (idRows || []).map((r) => (typeof r === "string" ? r : r.my_student_ids)).filter(Boolean);
       if (!ids.length) return router.replace("/pending");
 
-      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }] = await Promise.all([
+      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }] = await Promise.all([
         sb().from("students").select("*").in("id", ids),
         sb().from("day_records").select("*").in("student_id", ids),
         sb().from("weekly_bucks").select("*").in("student_id", ids),
         sb().from("homework").select("*").in("student_id", ids).order("due_date", { nullsFirst: false }),
+        sb().from("rewards").select("*").eq("active", true).order("price_rupees"),
+        sb().from("redemptions").select("*").in("student_id", ids).order("created_at", { ascending: false }),
       ]);
+      setRewards(rw || []);
+      const redMap = {};
+      (rd || []).forEach((r) => { (redMap[r.student_id] = redMap[r.student_id] || []).push(r); });
+      setRedemptionsByStudent(redMap);
 
       setStudents(st || []);
       setChildId((st && st[0]) ? st[0].id : ids[0]);
@@ -68,8 +78,24 @@ export default function Me() {
   const records = recordsByStudent[childId] || {};
   const bucks = bucksByStudent[childId] || [];
   const homework = homeworkByStudent[childId] || [];
+  const myRedemptions = redemptionsByStudent[childId] || [];
+  const rupeesSpentOrPending = myRedemptions.filter((r) => r.status !== "cancelled").reduce((a, r) => a + r.price_rupees, 0);
 
   const signOut = async () => { await sb().auth.signOut(); router.replace("/login"); };
+
+  const redeem = async (reward, available) => {
+    if (reward.price_rupees > available) return;
+    setRedeeming(true); setRedeemErr("");
+    const { error } = await sb().from("redemptions").insert({
+      student_id: childId, reward_id: reward.id, reward_name: reward.name, price_rupees: reward.price_rupees,
+    });
+    setRedeeming(false);
+    if (error) setRedeemErr("That didn't go through — try again.");
+    else {
+      const { data: rd } = await sb().from("redemptions").select("*").eq("student_id", childId).order("created_at", { ascending: false });
+      setRedemptionsByStudent((m) => ({ ...m, [childId]: rd || [] }));
+    }
+  };
 
   if (loading) {
     return (
@@ -303,6 +329,58 @@ export default function Me() {
             </div>
           ) : null}
         </Card>
+
+        {(() => {
+          const available = Math.max(0, totalRupees - rupeesSpentOrPending);
+          return (
+            <Card C={C} style={{ marginTop: 12 }}>
+              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Spend your bucks</h3>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
+                Rs {available} left to spend
+                {rupeesSpentOrPending ? ` · Rs ${rupeesSpentOrPending} spent or on hold` : ""}
+              </div>
+
+              {rewards.length === 0 ? (
+                <p style={{ fontSize: 13.5, color: C.muted, marginTop: 12 }}>Nothing in the store yet.</p>
+              ) : (
+                <div style={{ marginTop: 12 }}>
+                  {rewards.map((r) => {
+                    const canAfford = r.price_rupees <= available;
+                    return (
+                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 14.5 }}>{r.name}</div>
+                          <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>Rs {r.price_rupees}</div>
+                        </div>
+                        <button onClick={() => redeem(r, available)} disabled={!canAfford || redeeming}
+                          style={{ background: canAfford ? C.accent : "transparent", color: canAfford ? C.onAccent : C.muted,
+                            border: `1px solid ${canAfford ? C.accent : C.line}`, borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 500,
+                            opacity: redeeming ? 0.6 : 1 }}>
+                          Redeem
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {redeemErr ? <div style={{ color: C.warn, fontSize: 13, marginTop: 10 }}>{redeemErr}</div> : null}
+
+              {myRedemptions.length ? (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Your requests</div>
+                  {myRedemptions.map((r) => (
+                    <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 6 }}>
+                      <span>{r.reward_name}</span>
+                      <span style={{ color: r.status === "given" ? C.accent : r.status === "cancelled" ? C.warn : C.muted, fontFamily: MONO, fontSize: 12 }}>
+                        {r.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </Card>
+          );
+        })()}
 
         <Card C={C} style={{ marginTop: 12 }}>
           <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Points, all time</h3>
