@@ -6,7 +6,7 @@ import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button,
 import { InstallPrompt } from "../../lib/auth";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay,
-  BUCKS_PER_WEEK, RUPEES_PER_BUCK,
+  RUPEES_PER_BUCK,
 } from "../../lib/theme";
 
 const ATT = [["present", "Present"], ["absent", "Absent"], ["no_class", "No class"]];
@@ -228,6 +228,7 @@ export default function Teacher() {
             <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
               <ThemeToggle C={C} dark={dark} setDark={setDark} />
               <button onClick={() => router.push("/feed")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Feed</button>
+              <button onClick={() => router.push("/rules")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Rules</button>
               <button onClick={signOut} style={{ background: "transparent", color: C.muted, fontSize: 13, fontWeight: 600 }}>Sign out</button>
             </div>
             <div style={{ fontFamily: MONO, fontSize: 10.5, color: status.includes("NOT") ? C.warn : C.muted, marginTop: 4 }}>{status}</div>
@@ -748,15 +749,23 @@ export default function Teacher() {
             <Card C={C} style={{ marginTop: 20 }}>
               <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>
               <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
-                Each week's winner earns {BUCKS_PER_WEEK} bucks · judged by average score per class, so 3-day and 5-day students compete fairly · 1 buck = Rs {RUPEES_PER_BUCK} · ties split the bucks
+                1st place earns 10 bucks, 2nd earns 6, 3rd earns 2 · judged by average score per class, so 3-day and 5-day students compete fairly · 1 buck = Rs {RUPEES_PER_BUCK} · ties within a place split it evenly
               </div>
               {weekWinners.length ? (
                 <div style={{ background: C.soft, borderRadius: 10, padding: 12, marginTop: 14 }}>
                   <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: C.deep }}>This week</div>
-                  <div style={{ fontSize: 14.5, marginTop: 6 }}>
-                    <strong>{weekWinners.map((w) => students.find((s) => s.id === w.student_id)?.name).filter(Boolean).join(" & ")}</strong>
-                    {" "}averaging {Number(weekWinners[0].points).toFixed(1)} / {MAXDAY} a class this week.
-                  </div>
+                  {[1, 2, 3].map((place) => {
+                    const atPlace = weekWinners.filter((w) => w.place === place);
+                    if (!atPlace.length) return null;
+                    const label = place === 1 ? "1st" : place === 2 ? "2nd" : "3rd";
+                    return (
+                      <div key={place} style={{ fontSize: 14, marginTop: 6 }}>
+                        <span style={{ fontFamily: MONO, color: C.deep, fontWeight: 600 }}>{label}</span>{" "}
+                        <strong>{atPlace.map((w) => students.find((s) => s.id === w.student_id)?.name).filter(Boolean).join(" & ")}</strong>
+                        {" "}· {Number(atPlace[0].points).toFixed(1)} / {MAXDAY} a class
+                      </div>
+                    );
+                  })}
                 </div>
               ) : null}
               {bucksTotals.some((b) => b.bucks > 0) ? (
