@@ -32,7 +32,7 @@ export default function Feed() {
   const load = useCallback(async () => {
     const [{ data: p }, { data: allProfiles }, { data: c }] = await Promise.all([
       sb().from("feed_posts").select("*").order("created_at", { ascending: false }),
-      sb().from("profiles").select("id, full_name, email, role"),
+      sb().rpc("feed_profile_names"),
       sb().from("feed_comments").select("*").order("created_at", { ascending: true }),
     ]);
     setPosts(p || []);
@@ -56,7 +56,7 @@ export default function Feed() {
     })();
   }, [router, load]);
 
-  const nameFor = (id) => profiles[id]?.full_name || profiles[id]?.email?.split("@")[0] || "Someone";
+  const nameFor = (id) => profiles[id]?.full_name || "Someone";
 
   const post = async () => {
     const text = body.trim();
