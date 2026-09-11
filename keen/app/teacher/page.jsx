@@ -31,6 +31,9 @@ export default function Teacher() {
   const [newName, setNewName] = useState("");
   const [homework, setHomework] = useState([]);
   const [hwTitle, setHwTitle] = useState({});
+  const [hwExpanded, setHwExpanded] = useState({});
+  const hwCutoff = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return iso(d); })();
+  const recentHw = (list) => list.filter((h) => (h.due_date || h.set_on) >= hwCutoff);
   const [hwDue, setHwDue] = useState({});
 
   const [links, setLinks] = useState([]);
@@ -97,6 +100,12 @@ export default function Teacher() {
   const bump = (sid, key, delta, min, max) => {
     const v = Math.max(min, Math.min(max, (rec(sid)[key] || 0) + delta));
     write(sid, { [key]: v });
+  };
+
+  const markPerfect = (sid) => {
+    const full = {};
+    CATS.forEach((c) => { full[c.key] = 5; });
+    write(sid, full);
   };
 
   const setAtt = (sid, mark) => write(sid, { attendance: rec(sid).attendance === mark ? null : mark });
@@ -178,12 +187,16 @@ export default function Teacher() {
   }
 
   const inMonth = (k) => { const d = new Date(k); return d.getFullYear() === cursor.y && d.getMonth() === cursor.m; };
+  // Week/Month/All-time compare AVERAGE points per class held, not the raw sum,
+  // so a 3-day-a-week student is judged fairly against a 5-day-a-week one.
   const scoreOf = (sid) => {
     if (view === "day") return points(rec(sid));
-    return Object.keys(records)
+    const keys = Object.keys(records)
       .filter((k) => k.startsWith(`${sid}|`))
-      .filter((k) => (view === "month" ? inMonth(k.split("|")[1]) : true))
-      .reduce((a, k) => a + points(records[k]), 0);
+      .filter((k) => (view === "month" ? inMonth(k.split("|")[1]) : true));
+    if (!keys.length) return 0;
+    const total = keys.reduce((a, k) => a + points(records[k]), 0);
+    return Math.round((total / keys.length) * 10) / 10;
   };
   const attStats = (sid) => {
     const keys = Object.keys(records).filter((k) => k.startsWith(`${sid}|`) && inMonth(k.split("|")[1]));
@@ -502,27 +515,46 @@ export default function Teacher() {
 
                   <Card C={C} style={{ marginTop: 12 }}>
                     <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>Homework</h3>
-                    {sHw.length === 0 ? <p style={{ fontSize: 13.5, color: C.muted, marginTop: 8 }}>Nothing set.</p> :
-                      sHw.map((h) => {
-                        const badge = h.status === "done" ? { l: "Done", c: C.accent }
-                          : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
-                          : { l: "Not done", c: C.muted };
-                        const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
-                        return (
-                          <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
-                                {h.title}
+                    {(() => {
+                      const shown = hwExpanded[s.id] ? sHw : recentHw(sHw);
+                      const hiddenCount = sHw.length - shown.length;
+                      if (sHw.length === 0) return <p style={{ fontSize: 13.5, color: C.muted, marginTop: 8 }}>Nothing set.</p>;
+                      return (
+                        <>
+                          {shown.map((h) => {
+                            const badge = h.status === "done" ? { l: "Done", c: C.accent }
+                              : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
+                              : { l: "Not done", c: C.muted };
+                            const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
+                            return (
+                              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
+                                    {h.title}
+                                  </div>
+                                  <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
+                                    {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`} · {badge.l}
+                                    {overdue ? " · overdue" : ""}
+                                  </div>
+                                </div>
                               </div>
-                              <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
-                                {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`} · {badge.l}
-                                {overdue ? " · overdue" : ""}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                            );
+                          })}
+                          {hiddenCount > 0 ? (
+                            <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: true }))}
+                              style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
+                              Show all ({hiddenCount} more)
+                            </button>
+                          ) : hwExpanded[s.id] ? (
+                            <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: false }))}
+                              style={{ background: "transparent", color: C.muted, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
+                              Show less
+                            </button>
+                          ) : null}
+                        </>
+                      );
+                    })()}
                   </Card>
 
                   <Card C={C} style={{ marginTop: 12 }}>
@@ -619,6 +651,11 @@ export default function Teacher() {
                           {MONTHS[cursor.m]}: {a.present}/{a.held} attended · {a.missed} missed · {a.pct}%
                         </div>
 
+                        <button onClick={() => markPerfect(s.id)}
+                          style={{ width: "100%", background: C.soft, color: C.deep, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 0", fontSize: 13.5, fontWeight: 600, marginTop: 10 }}>
+                          Mark perfect day · {MAXDAY}/{MAXDAY}
+                        </button>
+
                         {CATS.map((c) => (
                           <ScoreRow key={c.key} C={C} label={c.label} hint={c.hint} weight={c.weight} max={5}
                             value={r[c.key] || 0}
@@ -636,10 +673,14 @@ export default function Teacher() {
                             </span>
                           </div>
 
-                          {homework.filter((h) => h.student_id === s.id).length === 0 ? (
-                            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>Nothing set yet.</div>
-                          ) : (
-                            homework.filter((h) => h.student_id === s.id).map((h) => (
+                          {(() => {
+                            const all = homework.filter((h) => h.student_id === s.id);
+                            const shownHw = hwExpanded[s.id] ? all : recentHw(all);
+                            const hidden = all.length - shownHw.length;
+                            if (all.length === 0) return <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>Nothing set yet.</div>;
+                            return (
+                              <>
+                                {shownHw.map((h) => (
                               <div key={h.id} style={{ marginTop: 12 }}>
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -667,8 +708,21 @@ export default function Teacher() {
                                   })}
                                 </div>
                               </div>
-                            ))
-                          )}
+                                ))}
+                                {hidden > 0 ? (
+                                  <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: true }))}
+                                    style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
+                                    Show all ({hidden} more)
+                                  </button>
+                                ) : hwExpanded[s.id] ? (
+                                  <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: false }))}
+                                    style={{ background: "transparent", color: C.muted, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
+                                    Show less
+                                  </button>
+                                ) : null}
+                              </>
+                            );
+                          })()}
 
                           <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
                             <Input C={C} value={hwTitle[s.id] || ""} placeholder="Set homework…"
@@ -694,14 +748,14 @@ export default function Teacher() {
             <Card C={C} style={{ marginTop: 20 }}>
               <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>
               <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
-                Each week's winner earns {BUCKS_PER_WEEK} bucks · 1 buck = Rs {RUPEES_PER_BUCK} · ties split the bucks
+                Each week's winner earns {BUCKS_PER_WEEK} bucks · judged by average score per class, so 3-day and 5-day students compete fairly · 1 buck = Rs {RUPEES_PER_BUCK} · ties split the bucks
               </div>
               {weekWinners.length ? (
                 <div style={{ background: C.soft, borderRadius: 10, padding: 12, marginTop: 14 }}>
                   <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: C.deep }}>This week</div>
                   <div style={{ fontSize: 14.5, marginTop: 6 }}>
                     <strong>{weekWinners.map((w) => students.find((s) => s.id === w.student_id)?.name).filter(Boolean).join(" & ")}</strong>
-                    {" "}leading on {weekWinners[0].points} points.
+                    {" "}averaging {Number(weekWinners[0].points).toFixed(1)} / {MAXDAY} a class this week.
                   </div>
                 </div>
               ) : null}
