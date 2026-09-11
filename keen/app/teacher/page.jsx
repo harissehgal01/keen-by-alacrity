@@ -40,7 +40,7 @@ export default function Teacher() {
   const [addChildFor, setAddChildFor] = useState(null);
   const [rewards, setRewards] = useState([]);
   const [redemptions, setRedemptions] = useState([]);
-  const [newReward, setNewReward] = useState({ name: "", price: "" });
+  const [newReward, setNewReward] = useState({ name: "", price: "", description: "" });
 
   const load = useCallback(async () => {
     const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }] = await Promise.all([
@@ -129,8 +129,12 @@ export default function Teacher() {
     const name = newReward.name.trim();
     const price = Number(newReward.price);
     if (!name || !price || price <= 0) return;
-    await sb().from("rewards").insert({ name, price_rupees: price });
-    setNewReward({ name: "", price: "" });
+    await sb().from("rewards").insert({ name, price_rupees: price, description: newReward.description.trim() });
+    setNewReward({ name: "", price: "", description: "" });
+    await load();
+  };
+  const updateRewardDescription = async (id, description) => {
+    await sb().from("rewards").update({ description }).eq("id", id);
     await load();
   };
   const toggleReward = async (id, active) => {
@@ -288,16 +292,24 @@ export default function Teacher() {
                   style={{ width: 90, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, color: C.ink, padding: "10px 10px", fontSize: 15, fontFamily: "inherit" }} />
                 <Button C={C} onClick={addReward} style={{ padding: "0 18px" }}>Add</Button>
               </div>
+              <Input C={C} value={newReward.description} placeholder="What's included (optional) — e.g. what's in a combo"
+                onChange={(e) => setNewReward((v) => ({ ...v, description: e.target.value }))}
+                style={{ marginTop: 8, fontSize: 13.5 }} />
               {rewards.map((r) => (
-                <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
-                  <div>
-                    <span style={{ fontSize: 15, textDecoration: r.active ? "none" : "line-through", color: r.active ? C.ink : C.muted }}>{r.name}</span>
-                    <span style={{ fontFamily: MONO, fontSize: 13, color: C.muted, marginLeft: 10 }}>Rs {r.price_rupees}</span>
+                <div key={r.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <span style={{ fontSize: 15, textDecoration: r.active ? "none" : "line-through", color: r.active ? C.ink : C.muted }}>{r.name}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 13, color: C.muted, marginLeft: 10 }}>Rs {r.price_rupees}</span>
+                    </div>
+                    <button onClick={() => toggleReward(r.id, r.active)}
+                      style={{ background: "transparent", color: r.active ? C.warn : C.accent, fontSize: 12.5, fontWeight: 500 }}>
+                      {r.active ? "Retire" : "Restore"}
+                    </button>
                   </div>
-                  <button onClick={() => toggleReward(r.id, r.active)}
-                    style={{ background: "transparent", color: r.active ? C.warn : C.accent, fontSize: 12.5, fontWeight: 500 }}>
-                    {r.active ? "Retire" : "Restore"}
-                  </button>
+                  <Input C={C} defaultValue={r.description || ""} placeholder="What's included (optional)"
+                    onBlur={(e) => { if (e.target.value !== (r.description || "")) updateRewardDescription(r.id, e.target.value); }}
+                    style={{ marginTop: 8, fontSize: 13, color: C.muted }} />
                 </div>
               ))}
             </Card>
