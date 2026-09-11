@@ -22,6 +22,7 @@ export default function Me() {
   const [redeeming, setRedeeming] = useState(false);
   const [redeemErr, setRedeemErr] = useState("");
   const [goalByStudent, setGoalByStudent] = useState({});
+  const [adjustmentsByStudent, setAdjustmentsByStudent] = useState({});
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ export default function Me() {
       const ids = (idRows || []).map((r) => (typeof r === "string" ? r : r.my_student_ids)).filter(Boolean);
       if (!ids.length) return router.replace("/pending");
 
-      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }] = await Promise.all([
+      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }, { data: adj }] = await Promise.all([
         sb().from("students").select("*").in("id", ids),
         sb().from("day_records").select("*").in("student_id", ids),
         sb().from("weekly_bucks").select("*").in("student_id", ids),
@@ -48,6 +49,7 @@ export default function Me() {
         sb().from("rewards").select("*").eq("active", true).order("price_rupees"),
         sb().from("redemptions").select("*").in("student_id", ids).order("created_at", { ascending: false }),
         sb().from("savings_goals").select("*").in("student_id", ids),
+        sb().from("bucks_adjustments").select("*").in("student_id", ids),
       ]);
       setRewards(rw || []);
       const redMap = {};
@@ -56,6 +58,10 @@ export default function Me() {
       const goalMap = {};
       (sg || []).forEach((g) => { goalMap[g.student_id] = g.reward_id; });
       setGoalByStudent(goalMap);
+
+      const adjMap = {};
+      (adj || []).forEach((a) => { (adjMap[a.student_id] = adjMap[a.student_id] || []).push(a); });
+      setAdjustmentsByStudent(adjMap);
 
       setStudents(st || []);
       setChildId((st && st[0]) ? st[0].id : ids[0]);
@@ -129,9 +135,12 @@ export default function Me() {
   const pct = held ? Math.round((present / held) * 100) : 0;
 
   const today = records[date] || BLANK;
-  const totalBucks = bucks.reduce((a, b) => a + Number(b.bucks), 0);
-  const totalRupees = bucks.reduce((a, b) => a + Number(b.rupees), 0);
-  const myPlaceThisWeek = bucks.find((b) => b.week_start === mondayOf(date))?.place;
+  const thisMonday = mondayOf(iso(new Date()));
+  const adjustments = adjustmentsByStudent[childId] || [];
+  const bankedBucks = bucks.filter((b) => b.week_start < thisMonday);
+  const totalBucks = bankedBucks.reduce((a, b) => a + Number(b.bucks), 0)
+    + adjustments.reduce((a, adj) => a + Number(adj.bucks), 0);
+  const totalRupees = totalBucks * RUPEES_PER_BUCK;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Inter', sans-serif" }}>
@@ -339,11 +348,9 @@ export default function Me() {
             1st place earns 10 bucks, 2nd earns 6, 3rd earns 2 · 1 buck is worth Rs {RUPEES_PER_BUCK}.
             Ties within a place split it evenly.
           </div>
-          {myPlaceThisWeek ? (
-            <div style={{ background: C.soft, borderRadius: 10, padding: 12, marginTop: 12, fontSize: 13.5, color: C.deep }}>
-              {myPlaceThisWeek === 1 ? "In 1st place this week." : myPlaceThisWeek === 2 ? "In 2nd place this week." : "In 3rd place this week."}
-            </div>
-          ) : null}
+          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 12, lineHeight: 1.5 }}>
+            This week's placing isn't shown until the week is over — check back after it finishes.
+          </div>
         </Card>
 
         {(() => {
@@ -388,9 +395,12 @@ export default function Me() {
                       const isGoal = r.id === goalId;
                       return (
                         <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10 }}>
-                          <div>
+                          <div style={{ minWidth: 0, flex: 1, marginRight: 10 }}>
                             <div style={{ fontSize: 14.5 }}>{r.name}</div>
-                            <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>
+                            {r.description ? (
+                              <div style={{ fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{r.description}</div>
+                            ) : null}
+                            <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted, marginTop: 2 }}>
                               Rs {r.price_rupees}{!canAfford ? ` · Rs ${r.price_rupees - available} more needed` : ""}
                             </div>
                           </div>
