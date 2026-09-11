@@ -6,7 +6,7 @@ import { useTheme, Fonts, Lockup, ThemeToggle, Card, Stat, Calendar, Button, Foo
 import { InstallPrompt } from "../../lib/auth";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
-  BUCKS_PER_WEEK, RUPEES_PER_BUCK,
+  RUPEES_PER_BUCK,
 } from "../../lib/theme";
 
 export default function Me() {
@@ -131,7 +131,7 @@ export default function Me() {
   const today = records[date] || BLANK;
   const totalBucks = bucks.reduce((a, b) => a + Number(b.bucks), 0);
   const totalRupees = bucks.reduce((a, b) => a + Number(b.rupees), 0);
-  const leadingNow = bucks.some((b) => b.week_start === mondayOf(date));
+  const myPlaceThisWeek = bucks.find((b) => b.week_start === mondayOf(date))?.place;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Inter', sans-serif" }}>
@@ -142,6 +142,7 @@ export default function Me() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <ThemeToggle C={C} dark={dark} setDark={setDark} />
             <button onClick={() => router.push("/feed")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Feed</button>
+            <button onClick={() => router.push("/rules")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Rules</button>
             <button onClick={signOut} style={{ background: "transparent", color: C.muted, fontSize: 13, fontWeight: 600 }}>Sign out</button>
           </div>
         </div>
@@ -334,12 +335,12 @@ export default function Me() {
             <span style={{ fontSize: 15, color: C.muted }}>= Rs {totalRupees}</span>
           </div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
-            Each week's winner earns {BUCKS_PER_WEEK} bucks, and 1 buck is worth Rs {RUPEES_PER_BUCK}.
-            If two students tie, the bucks are split between them.
+            1st place earns 10 bucks, 2nd earns 6, 3rd earns 2 · 1 buck is worth Rs {RUPEES_PER_BUCK}.
+            Ties within a place split it evenly.
           </div>
-          {leadingNow ? (
+          {myPlaceThisWeek ? (
             <div style={{ background: C.soft, borderRadius: 10, padding: 12, marginTop: 12, fontSize: 13.5, color: C.deep }}>
-              You're top of this week so far.
+              {myPlaceThisWeek === 1 ? "In 1st place this week." : myPlaceThisWeek === 2 ? "In 2nd place this week." : "In 3rd place this week."}
             </div>
           ) : null}
         </Card>
