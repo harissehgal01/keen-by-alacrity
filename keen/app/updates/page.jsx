@@ -104,15 +104,15 @@ export default function Updates() {
             <h3 style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 600, margin: 0 }}>The Store</h3>
           </div>
           <p style={{ fontSize: 14.5, lineHeight: 1.6, margin: 0 }}>
-            Spend your Alacrity Bucks on real things \u2014 coffee, chips, and more. Can't afford something yet? Tap{" "}
+            Spend your Alacrity Bucks on real things — coffee, chips, and more. Can't afford something yet? Tap{" "}
             <strong>"Save for this"</strong> and watch your progress toward it.
           </p>
           <div style={{ marginTop: 10 }}>
             <span style={{ display: "inline-block", background: C.soft, color: C.deep, fontFamily: MONO, fontSize: 11, letterSpacing: ".05em", padding: "3px 10px", borderRadius: 999, marginRight: 6, marginTop: 8 }}>
-              \u2615 Coffee \u00b7 Rs 750
+              ☕ Coffee · Rs 750
             </span>
             <span style={{ display: "inline-block", background: C.soft, color: C.deep, fontFamily: MONO, fontSize: 11, letterSpacing: ".05em", padding: "3px 10px", borderRadius: 999, marginRight: 6, marginTop: 8 }}>
-              \ud83c\udf5f Chips \u00b7 Rs 100
+              🍟 Chips · Rs 100
             </span>
           </div>
         </Card>
@@ -133,7 +133,7 @@ export default function Updates() {
             <h3 style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 600, margin: 0 }}>New: Rules & Store page</h3>
           </div>
           <p style={{ fontSize: 14.5, lineHeight: 1.6, margin: 0 }}>
-            Everything above, laid out in one place \u2014 how scoring works, how winning works, and what's in the store. Find it from the "Rules" link at the top of Keen.
+            Everything above, laid out in one place — how scoring works, how winning works, and what's in the store. Find it from the "Rules" link at the top of Keen.
           </p>
         </Card>
 
