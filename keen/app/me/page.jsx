@@ -21,6 +21,7 @@ export default function Me() {
   const [redemptionsByStudent, setRedemptionsByStudent] = useState({});
   const [redeeming, setRedeeming] = useState(false);
   const [redeemErr, setRedeemErr] = useState("");
+  const [goalByStudent, setGoalByStudent] = useState({});
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -39,18 +40,22 @@ export default function Me() {
       const ids = (idRows || []).map((r) => (typeof r === "string" ? r : r.my_student_ids)).filter(Boolean);
       if (!ids.length) return router.replace("/pending");
 
-      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }] = await Promise.all([
+      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }] = await Promise.all([
         sb().from("students").select("*").in("id", ids),
         sb().from("day_records").select("*").in("student_id", ids),
         sb().from("weekly_bucks").select("*").in("student_id", ids),
         sb().from("homework").select("*").in("student_id", ids).order("due_date", { nullsFirst: false }),
         sb().from("rewards").select("*").eq("active", true).order("price_rupees"),
         sb().from("redemptions").select("*").in("student_id", ids).order("created_at", { ascending: false }),
+        sb().from("savings_goals").select("*").in("student_id", ids),
       ]);
       setRewards(rw || []);
       const redMap = {};
       (rd || []).forEach((r) => { (redMap[r.student_id] = redMap[r.student_id] || []).push(r); });
       setRedemptionsByStudent(redMap);
+      const goalMap = {};
+      (sg || []).forEach((g) => { goalMap[g.student_id] = g.reward_id; });
+      setGoalByStudent(goalMap);
 
       setStudents(st || []);
       setChildId((st && st[0]) ? st[0].id : ids[0]);
@@ -82,6 +87,15 @@ export default function Me() {
   const rupeesSpentOrPending = myRedemptions.filter((r) => r.status !== "cancelled").reduce((a, r) => a + r.price_rupees, 0);
 
   const signOut = async () => { await sb().auth.signOut(); router.replace("/login"); };
+
+  const setGoal = async (rewardId) => {
+    await sb().from("savings_goals").upsert({ student_id: childId, reward_id: rewardId });
+    setGoalByStudent((g) => ({ ...g, [childId]: rewardId }));
+  };
+  const clearGoal = async () => {
+    await sb().from("savings_goals").delete().eq("student_id", childId);
+    setGoalByStudent((g) => ({ ...g, [childId]: null }));
+  };
 
   const redeem = async (reward, available) => {
     if (reward.price_rupees > available) return;
@@ -332,38 +346,72 @@ export default function Me() {
 
         {(() => {
           const available = Math.max(0, totalRupees - rupeesSpentOrPending);
+          const goalId = goalByStudent[childId];
+          const goalReward = goalId ? rewards.find((r) => r.id === goalId) : null;
           return (
-            <Card C={C} style={{ marginTop: 12 }}>
-              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Spend your bucks</h3>
-              <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
-                Rs {available} left to spend
-                {rupeesSpentOrPending ? ` · Rs ${rupeesSpentOrPending} spent or on hold` : ""}
-              </div>
+            <>
+              {goalReward ? (
+                <Card C={C} style={{ marginTop: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <h3 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, margin: 0 }}>Saving for {goalReward.name}</h3>
+                    <button onClick={clearGoal} style={{ background: "transparent", color: C.muted, fontSize: 12, fontWeight: 500 }}>Change</button>
+                  </div>
+                  <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>
+                    Rs {available} of Rs {goalReward.price_rupees}
+                  </div>
+                  <div style={{ marginTop: 10, height: 8, borderRadius: 999, background: C.line, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(100, (available / goalReward.price_rupees) * 100)}%`, height: "100%", background: C.accent }} />
+                  </div>
+                  {available >= goalReward.price_rupees ? (
+                    <div style={{ fontSize: 13, color: C.accent, marginTop: 10, fontWeight: 600 }}>You've got enough — redeem it below!</div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 10 }}>Rs {goalReward.price_rupees - available} to go</div>
+                  )}
+                </Card>
+              ) : null}
 
-              {rewards.length === 0 ? (
-                <p style={{ fontSize: 13.5, color: C.muted, marginTop: 12 }}>Nothing in the store yet.</p>
-              ) : (
-                <div style={{ marginTop: 12 }}>
-                  {rewards.map((r) => {
-                    const canAfford = r.price_rupees <= available;
-                    return (
-                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10 }}>
-                        <div>
-                          <div style={{ fontSize: 14.5 }}>{r.name}</div>
-                          <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>Rs {r.price_rupees}</div>
-                        </div>
-                        <button onClick={() => redeem(r, available)} disabled={!canAfford || redeeming}
-                          style={{ background: canAfford ? C.accent : "transparent", color: canAfford ? C.onAccent : C.muted,
-                            border: `1px solid ${canAfford ? C.accent : C.line}`, borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 500,
-                            opacity: redeeming ? 0.6 : 1 }}>
-                          Redeem
-                        </button>
-                      </div>
-                    );
-                  })}
+              <Card C={C} style={{ marginTop: 12 }}>
+                <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Spend your bucks</h3>
+                <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
+                  Rs {available} left to spend
+                  {rupeesSpentOrPending ? ` · Rs ${rupeesSpentOrPending} spent or on hold` : ""}
                 </div>
-              )}
-              {redeemErr ? <div style={{ color: C.warn, fontSize: 13, marginTop: 10 }}>{redeemErr}</div> : null}
+
+                {rewards.length === 0 ? (
+                  <p style={{ fontSize: 13.5, color: C.muted, marginTop: 12 }}>Nothing in the store yet.</p>
+                ) : (
+                  <div style={{ marginTop: 12 }}>
+                    {rewards.map((r) => {
+                      const canAfford = r.price_rupees <= available;
+                      const isGoal = r.id === goalId;
+                      return (
+                        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 14.5 }}>{r.name}</div>
+                            <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>
+                              Rs {r.price_rupees}{!canAfford ? ` · Rs ${r.price_rupees - available} more needed` : ""}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            {!isGoal ? (
+                              <button onClick={() => setGoal(r.id)}
+                                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.line}`, borderRadius: 999, padding: "7px 10px", fontSize: 11.5, fontWeight: 500 }}>
+                                Save for this
+                              </button>
+                            ) : null}
+                            <button onClick={() => redeem(r, available)} disabled={!canAfford || redeeming}
+                              style={{ background: canAfford ? C.accent : "transparent", color: canAfford ? C.onAccent : C.muted,
+                                border: `1px solid ${canAfford ? C.accent : C.line}`, borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 500,
+                                opacity: redeeming ? 0.6 : 1 }}>
+                              Redeem
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {redeemErr ? <div style={{ color: C.warn, fontSize: 13, marginTop: 10 }}>{redeemErr}</div> : null}
 
               {myRedemptions.length ? (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
@@ -378,7 +426,8 @@ export default function Me() {
                   ))}
                 </div>
               ) : null}
-            </Card>
+              </Card>
+            </>
           );
         })()}
 
