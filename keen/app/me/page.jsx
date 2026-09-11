@@ -23,6 +23,7 @@ export default function Me() {
   const [redeemErr, setRedeemErr] = useState("");
   const [goalByStudent, setGoalByStudent] = useState({});
   const [adjustmentsByStudent, setAdjustmentsByStudent] = useState({});
+  const [finalizedWeeks, setFinalizedWeeks] = useState([]);
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -41,7 +42,7 @@ export default function Me() {
       const ids = (idRows || []).map((r) => (typeof r === "string" ? r : r.my_student_ids)).filter(Boolean);
       if (!ids.length) return router.replace("/pending");
 
-      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }, { data: adj }] = await Promise.all([
+      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }, { data: adj }, { data: fw }] = await Promise.all([
         sb().from("students").select("*").in("id", ids),
         sb().from("day_records").select("*").in("student_id", ids),
         sb().from("weekly_bucks").select("*").in("student_id", ids),
@@ -50,6 +51,7 @@ export default function Me() {
         sb().from("redemptions").select("*").in("student_id", ids).order("created_at", { ascending: false }),
         sb().from("savings_goals").select("*").in("student_id", ids),
         sb().from("bucks_adjustments").select("*").in("student_id", ids),
+        sb().from("week_finalized").select("week_start"),
       ]);
       setRewards(rw || []);
       const redMap = {};
@@ -62,6 +64,7 @@ export default function Me() {
       const adjMap = {};
       (adj || []).forEach((a) => { (adjMap[a.student_id] = adjMap[a.student_id] || []).push(a); });
       setAdjustmentsByStudent(adjMap);
+      setFinalizedWeeks((fw || []).map((x) => x.week_start));
 
       setStudents(st || []);
       setChildId((st && st[0]) ? st[0].id : ids[0]);
@@ -135,9 +138,8 @@ export default function Me() {
   const pct = held ? Math.round((present / held) * 100) : 0;
 
   const today = records[date] || BLANK;
-  const thisMonday = mondayOf(iso(new Date()));
   const adjustments = adjustmentsByStudent[childId] || [];
-  const bankedBucks = bucks.filter((b) => b.week_start < thisMonday);
+  const bankedBucks = bucks.filter((b) => finalizedWeeks.includes(b.week_start));
   const totalBucks = bankedBucks.reduce((a, b) => a + Number(b.bucks), 0)
     + adjustments.reduce((a, adj) => a + Number(adj.bucks), 0);
   const totalRupees = totalBucks * RUPEES_PER_BUCK;
