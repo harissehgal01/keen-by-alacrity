@@ -30,7 +30,11 @@ export const MAXDAY = CATS.reduce((a, c) => a + c.weight * 5, 0);
 export const BLANK = { work: 0, behaviour: 0, obedience: 0, phone: 0, seat: 0, homework: 0, punctuality: 0, bonus: 0 };
 export const points = (r) => CATS.reduce((a, c) => a + (r?.[c.key] || 0) * c.weight, 0) + (r?.bonus || 0);
 
-export const BUCKS_PER_WEEK = 10;
+export const WEEKLY_TIERS = [
+  { place: 1, label: "1st place", bucks: 10 },
+  { place: 2, label: "2nd place", bucks: 6 },
+  { place: 3, label: "3rd place", bucks: 2 },
+];
 export const RUPEES_PER_BUCK = 50;
 
 export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
