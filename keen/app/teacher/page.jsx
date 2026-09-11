@@ -41,9 +41,11 @@ export default function Teacher() {
   const [rewards, setRewards] = useState([]);
   const [redemptions, setRedemptions] = useState([]);
   const [newReward, setNewReward] = useState({ name: "", price: "", description: "" });
+  const [finalizedWeeks, setFinalizedWeeks] = useState([]);
+  const [declaring, setDeclaring] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }] = await Promise.all([
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }, { data: fw }] = await Promise.all([
       sb().from("students").select("*").eq("active", true).order("name"),
       sb().from("day_records").select("*"),
       sb().from("weekly_bucks").select("*"),
@@ -52,9 +54,11 @@ export default function Teacher() {
       sb().from("parent_links").select("*"),
       sb().from("rewards").select("*").order("price_rupees"),
       sb().from("redemptions").select("*").order("created_at", { ascending: false }),
+      sb().from("week_finalized").select("week_start"),
     ]);
     setRewards(rw || []);
     setRedemptions(rd || []);
+    setFinalizedWeeks((fw || []).map((x) => x.week_start));
     setLinks(pl || []);
     setHomework(hw || []);
     setStudents(st || []);
@@ -65,6 +69,8 @@ export default function Teacher() {
     setPending(pf || []);
   }, []);
 
+  const [myId, setMyId] = useState(null);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await sb().auth.getSession();
@@ -72,6 +78,7 @@ export default function Teacher() {
       const { data: profile } = await sb()
         .from("profiles").select("role").eq("id", session.user.id).single();
       if (profile?.role !== "admin") return router.replace(profile?.student_id ? "/me" : "/pending");
+      setMyId(session.user.id);
       await load();
       setLoading(false);
     })();
@@ -143,6 +150,25 @@ export default function Teacher() {
   };
   const resolveRedemption = async (id, status) => {
     await sb().from("redemptions").update({ status, resolved_at: new Date().toISOString() }).eq("id", id);
+    await load();
+  };
+
+  const declareWinner = async (weekStart, winners) => {
+    if (!winners.length || finalizedWeeks.includes(weekStart)) return;
+    setDeclaring(true);
+    const { error } = await sb().from("week_finalized").insert({ week_start: weekStart, finalized_by: myId });
+    if (!error) {
+      const lines = [1, 2, 3].map((place) => {
+        const atPlace = winners.filter((w) => w.place === place);
+        if (!atPlace.length) return null;
+        const label = place === 1 ? "🥇 1st" : place === 2 ? "🥈 2nd" : "🥉 3rd";
+        const names = atPlace.map((w) => students.find((s) => s.id === w.student_id)?.name).filter(Boolean).join(" & ");
+        return label + ": " + names + " — " + Number(atPlace[0].bucks) + " bucks each";
+      }).filter(Boolean);
+      const body = "This week\'s results are in!\n\n" + lines.join("\n") + "\n\nGreat work, everyone.";
+      await sb().from("feed_posts").insert({ author_id: myId, body });
+    }
+    setDeclaring(false);
     await load();
   };
   const addStudent = async () => {
@@ -779,6 +805,15 @@ export default function Teacher() {
                       </div>
                     );
                   })}
+                  <button onClick={() => declareWinner(thisWeek, weekWinners)}
+                    disabled={declaring || finalizedWeeks.includes(thisWeek)}
+                    style={{ width: "100%", marginTop: 12, background: finalizedWeeks.includes(thisWeek) ? "transparent" : C.accent,
+                      color: finalizedWeeks.includes(thisWeek) ? C.muted : C.onAccent,
+                      border: finalizedWeeks.includes(thisWeek) ? `1px solid ${C.line}` : "none",
+                      borderRadius: 10, padding: "10px 0", fontSize: 13.5, fontWeight: 600,
+                      opacity: declaring ? 0.6 : 1 }}>
+                    {finalizedWeeks.includes(thisWeek) ? "Declared — posted to Feed" : declaring ? "Declaring…" : "Declare this week's winner"}
+                  </button>
                 </div>
               ) : null}
               {bucksTotals.some((b) => b.bucks > 0) ? (
