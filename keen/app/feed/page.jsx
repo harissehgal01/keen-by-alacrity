@@ -113,6 +113,7 @@ export default function Feed() {
               {isAdmin ? "Points table" : "My Keen"}
             </button>
             <button onClick={() => router.push("/rules")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Rules</button>
+            <button onClick={() => router.push("/updates")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>New</button>
           </div>
         </div>
 
