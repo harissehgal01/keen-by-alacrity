@@ -121,7 +121,10 @@ export default function Rules() {
               <div key={r.id} style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: 16, textAlign: "center" }}>
                 <div style={{ fontSize: 34, lineHeight: 1 }}>{iconFor(r.name)}</div>
                 <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 10 }}>{r.name}</div>
-                <div style={{ fontFamily: MONO, fontSize: 13, color: C.accent, marginTop: 4 }}>Rs {r.price_rupees}</div>
+                {r.description ? (
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{r.description}</div>
+                ) : null}
+                <div style={{ fontFamily: MONO, fontSize: 13, color: C.accent, marginTop: 6 }}>Rs {r.price_rupees}</div>
               </div>
             ))}
           </div>
