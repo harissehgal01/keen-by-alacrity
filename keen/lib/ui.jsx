@@ -4,7 +4,7 @@ import { LIGHT, DARK, DISPLAY, MONO, MONTHS, monthGrid, iso } from "./theme";
 
 // One-off accent swap for a single calendar day. Add/remove dates here as needed
 // ("YYYY-MM-DD", using the viewer's own local date) — reverts on its own the next day.
-const RED_DAYS = ["2026-09-12"];
+const RED_DAYS = [];
 const RED_LIGHT = { accent: "#C23B3B", deep: "#7A1F1F", soft: "#FBE7E7", onAccent: "#FFFFFF" };
 const RED_DARK = { accent: "#F2705F", deep: "#F7A08F", soft: "#2A1613", onAccent: "#2B0D0A" };
 
