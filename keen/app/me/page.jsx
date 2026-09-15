@@ -143,6 +143,13 @@ export default function Me() {
   const totalBucks = bankedBucks.reduce((a, b) => a + Number(b.bucks), 0)
     + adjustments.reduce((a, adj) => a + Number(adj.bucks), 0);
   const totalRupees = totalBucks * RUPEES_PER_BUCK;
+  const firsts = bankedBucks.filter((b) => b.place === 1).length;
+  const seconds = bankedBucks.filter((b) => b.place === 2).length;
+  const thirds = bankedBucks.filter((b) => b.place === 3).length;
+  const lastDeclaredWeek = finalizedWeeks.length ? [...finalizedWeeks].sort().reverse()[0] : null;
+  const lastWeekPlace = lastDeclaredWeek
+    ? bankedBucks.find((b) => b.week_start === lastDeclaredWeek)?.place
+    : null;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Inter', sans-serif" }}>
@@ -176,6 +183,7 @@ export default function Me() {
 
         <h1 style={{ fontFamily: DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1, margin: "18px 0 0" }}>
           {student?.name}
+          {lastWeekPlace === 1 ? <span style={{ marginLeft: 10, fontSize: 30 }}>👑</span> : null}
         </h1>
         {student?.schedule ? <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>{student.schedule}</div> : null}
 
@@ -350,6 +358,43 @@ export default function Me() {
             1st place earns 10 bucks, 2nd earns 6, 3rd earns 2 · 1 buck is worth Rs {RUPEES_PER_BUCK}.
             Ties within a place split it evenly.
           </div>
+          {lastWeekPlace ? (
+            <div style={{ background: C.soft, borderRadius: 10, padding: 12, marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 26, lineHeight: 1 }}>
+                {lastWeekPlace === 1 ? "👑" : lastWeekPlace === 2 ? "🥈" : "🥉"}
+              </span>
+              <span style={{ fontSize: 14, color: C.deep, fontWeight: 600 }}>
+                {lastWeekPlace === 1 ? "Winner of last week!" : lastWeekPlace === 2 ? "2nd place last week" : "3rd place last week"}
+              </span>
+            </div>
+          ) : null}
+
+          {(firsts || seconds || thirds) ? (
+            <div style={{ display: "flex", gap: 16, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}`, flexWrap: "wrap" }}>
+              {firsts ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
+                  <span style={{ fontSize: 18 }}>👑</span>
+                  <span style={{ fontFamily: MONO, fontWeight: 700 }}>{firsts}</span>
+                  <span style={{ color: C.muted }}>{firsts === 1 ? "win" : "wins"}</span>
+                </span>
+              ) : null}
+              {seconds ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
+                  <span style={{ fontSize: 18 }}>🥈</span>
+                  <span style={{ fontFamily: MONO, fontWeight: 700 }}>{seconds}</span>
+                  <span style={{ color: C.muted }}>2nd</span>
+                </span>
+              ) : null}
+              {thirds ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
+                  <span style={{ fontSize: 18 }}>🥉</span>
+                  <span style={{ fontFamily: MONO, fontWeight: 700 }}>{thirds}</span>
+                  <span style={{ color: C.muted }}>3rd</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
           <div style={{ fontSize: 12.5, color: C.muted, marginTop: 12, lineHeight: 1.5 }}>
             This week's placing isn't shown until the week is over — check back after it finishes.
           </div>
