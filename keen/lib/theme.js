@@ -17,8 +17,8 @@ export const BODY = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', san
 export const MONO = "'Space Mono', monospace";
 
 export const CATS = [
-  { key: "work", label: "Work completed", weight: 3, hint: "Tasks finished today" },
-  { key: "behaviour", label: "Behaviour", weight: 2, hint: "Respect, listening, calm" },
+  { key: "work", label: "Work completed", weight: 2, hint: "Tasks finished today" },
+  { key: "behaviour", label: "Behaviour", weight: 3, hint: "Respect, listening, calm" },
   { key: "obedience", label: "Follows instructions", weight: 1, hint: "Does what's asked, first time" },
   { key: "phone", label: "Phone put away", weight: 1, hint: "5 = never out, 0 = out all lesson" },
   { key: "seat", label: "Stays at desk", weight: 1, hint: "Asks before leaving the table" },
