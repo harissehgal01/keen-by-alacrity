@@ -501,9 +501,9 @@ export default function Teacher() {
               const a = attStats(s.id);
               const r = rec(s.id);
               const sHw = homework.filter((h) => h.student_id === s.id);
-              const sBucks = bucks.filter((b) => b.student_id === s.id);
-              const totalBucks = sBucks.reduce((a2, b) => a2 + Number(b.bucks), 0);
-              const totalRupees = sBucks.reduce((a2, b) => a2 + Number(b.rupees), 0);
+              const sBucks = weekResults.filter((r) => r.student_id === s.id);
+              const totalBucks = sBucks.reduce((a2, r) => a2 + Number(r.bucks), 0);
+              const totalRupees = sBucks.reduce((a2, r) => a2 + Number(r.rupees), 0);
               return (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
