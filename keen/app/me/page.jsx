@@ -24,6 +24,7 @@ export default function Me() {
   const [goalByStudent, setGoalByStudent] = useState({});
   const [adjustmentsByStudent, setAdjustmentsByStudent] = useState({});
   const [finalizedWeeks, setFinalizedWeeks] = useState([]);
+  const [resultsByStudent, setResultsByStudent] = useState({});
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
@@ -42,7 +43,7 @@ export default function Me() {
       const ids = (idRows || []).map((r) => (typeof r === "string" ? r : r.my_student_ids)).filter(Boolean);
       if (!ids.length) return router.replace("/pending");
 
-      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }, { data: adj }, { data: fw }] = await Promise.all([
+      const [{ data: st }, { data: recs }, { data: wb }, { data: hw }, { data: rw }, { data: rd }, { data: sg }, { data: adj }, { data: fw }, { data: wr2 }] = await Promise.all([
         sb().from("students").select("*").in("id", ids),
         sb().from("day_records").select("*").in("student_id", ids),
         sb().from("weekly_bucks").select("*").in("student_id", ids),
@@ -52,6 +53,7 @@ export default function Me() {
         sb().from("savings_goals").select("*").in("student_id", ids),
         sb().from("bucks_adjustments").select("*").in("student_id", ids),
         sb().from("week_finalized").select("week_start"),
+        sb().from("week_results").select("*").in("student_id", ids),
       ]);
       setRewards(rw || []);
       const redMap = {};
@@ -65,6 +67,9 @@ export default function Me() {
       (adj || []).forEach((a) => { (adjMap[a.student_id] = adjMap[a.student_id] || []).push(a); });
       setAdjustmentsByStudent(adjMap);
       setFinalizedWeeks((fw || []).map((x) => x.week_start));
+      const wrMap = {};
+      (wr2 || []).forEach((r) => { (wrMap[r.student_id] = wrMap[r.student_id] || []).push(r); });
+      setResultsByStudent(wrMap);
 
       setStudents(st || []);
       setChildId((st && st[0]) ? st[0].id : ids[0]);
@@ -139,7 +144,7 @@ export default function Me() {
 
   const today = records[date] || BLANK;
   const adjustments = adjustmentsByStudent[childId] || [];
-  const bankedBucks = bucks.filter((b) => finalizedWeeks.includes(b.week_start));
+  const bankedBucks = resultsByStudent[childId] || [];
   const totalBucks = bankedBucks.reduce((a, b) => a + Number(b.bucks), 0)
     + adjustments.reduce((a, adj) => a + Number(adj.bucks), 0);
   const totalRupees = totalBucks * RUPEES_PER_BUCK;
