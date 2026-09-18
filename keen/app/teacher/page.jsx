@@ -43,9 +43,10 @@ export default function Teacher() {
   const [newReward, setNewReward] = useState({ name: "", price: "", description: "" });
   const [finalizedWeeks, setFinalizedWeeks] = useState([]);
   const [declaring, setDeclaring] = useState(false);
+  const [weekResults, setWeekResults] = useState([]);
 
   const load = useCallback(async () => {
-    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }, { data: fw }] = await Promise.all([
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }, { data: fw }, { data: wr }] = await Promise.all([
       sb().from("students").select("*").eq("active", true).order("name"),
       sb().from("day_records").select("*"),
       sb().from("weekly_bucks").select("*"),
@@ -55,10 +56,12 @@ export default function Teacher() {
       sb().from("rewards").select("*").order("price_rupees"),
       sb().from("redemptions").select("*").order("created_at", { ascending: false }),
       sb().from("week_finalized").select("week_start"),
+      sb().from("week_results").select("*"),
     ]);
     setRewards(rw || []);
     setRedemptions(rd || []);
     setFinalizedWeeks((fw || []).map((x) => x.week_start));
+    setWeekResults(wr || []);
     setLinks(pl || []);
     setHomework(hw || []);
     setStudents(st || []);
@@ -158,6 +161,13 @@ export default function Teacher() {
     setDeclaring(true);
     const { error } = await sb().from("week_finalized").insert({ week_start: weekStart, finalized_by: myId });
     if (!error) {
+      // Freeze exactly what's being paid out right now, so a later change to
+      // scoring weights can never silently rewrite an already-announced week.
+      const snapshot = winners.map((w) => ({
+        week_start: weekStart, student_id: w.student_id, place: w.place,
+        bucks: w.bucks, rupees: w.rupees, points: w.points,
+      }));
+      await sb().from("week_results").insert(snapshot);
       const lines = [1, 2, 3].map((place) => {
         const atPlace = winners.filter((w) => w.place === place);
         if (!atPlace.length) return null;
@@ -241,8 +251,8 @@ export default function Teacher() {
   const weekWinners = bucks.filter((b) => b.week_start === thisWeek);
   const bucksTotals = students.map((s) => ({
     s,
-    bucks: bucks.filter((b) => b.student_id === s.id && b.week_start !== thisWeek).reduce((a, b) => a + Number(b.bucks), 0),
-    rupees: bucks.filter((b) => b.student_id === s.id && b.week_start !== thisWeek).reduce((a, b) => a + Number(b.rupees), 0),
+    bucks: weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.bucks), 0),
+    rupees: weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.rupees), 0),
   })).sort((a, b) => b.bucks - a.bucks);
   const waiting = pending.filter((p) => p.role === "pending");
   const pendingRedemptions = redemptions.filter((r) => r.status === "requested");
