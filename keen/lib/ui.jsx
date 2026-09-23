@@ -5,6 +5,8 @@ import { LIGHT, DARK, DISPLAY, MONO, MONTHS, monthGrid, iso } from "./theme";
 // One-off accent swap for a single calendar day. Add/remove dates here as needed
 // ("YYYY-MM-DD", using the viewer's own local date) — reverts on its own the next day.
 const RED_DAYS = [];
+// Timed red window: turns red until this exact moment, then reverts on its own.
+const RED_UNTIL = "2026-09-23T21:40:00+05:00";
 const RED_LIGHT = { accent: "#C23B3B", deep: "#7A1F1F", soft: "#FBE7E7", onAccent: "#FFFFFF" };
 const RED_DARK = { accent: "#F2705F", deep: "#F7A08F", soft: "#2A1613", onAccent: "#2B0D0A" };
 
@@ -27,7 +29,7 @@ export function useTheme() {
     } catch (e) {}
   }, [touched]);
   let C = dark ? DARK : LIGHT;
-  if (typeof window !== "undefined" && RED_DAYS.includes(todayLocal())) {
+  if (typeof window !== "undefined" && (RED_DAYS.includes(todayLocal()) || Date.now() < new Date(RED_UNTIL).getTime())) {
     C = { ...C, ...(dark ? RED_DARK : RED_LIGHT) };
   }
   return { C, dark, setDark: (v) => { setTouched(true); setDark(v); } };
