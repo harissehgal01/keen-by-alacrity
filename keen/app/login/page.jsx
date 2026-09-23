@@ -130,6 +130,14 @@ export default function Login() {
           </Card>
         )}
 
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <Link href="/demo"
+            style={{ display: "block", border: `1px dashed ${C.line}`, borderRadius: 14, padding: "14px 16px", color: C.ink, textDecoration: "none" }}>
+            <div style={{ fontSize: 14.5, fontWeight: 600 }}>Explore as guest</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>See how Keen works with sample students. No account needed.</div>
+          </Link>
+        </div>
+
         <InstallPrompt C={C} />
         <Footer C={C} />
       </div>
