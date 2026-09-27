@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Button, Input, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
+import { PushToggle, SendPush } from "../../lib/push";
 import { DISPLAY, MONO } from "../../lib/theme";
 
 function timeAgo(iso) {
@@ -121,6 +122,8 @@ export default function Feed() {
           Feed
         </h1>
         <p style={{ fontSize: 13.5, color: C.muted, margin: 0 }}>Everyone in class can see and comment here.</p>
+        <PushToggle C={C} />
+        {isAdmin ? <SendPush C={C} /> : null}
 
         <Card C={C} style={{ marginTop: 16 }}>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Share something…"
