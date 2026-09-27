@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button, Input, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
+import { PushToggle, SendPush } from "../../lib/push";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay,
   RUPEES_PER_BUCK,
@@ -94,7 +95,7 @@ export default function Teacher() {
     const row = {
       student_id: sid, on_date: date,
       work: current.work || 0, behaviour: current.behaviour || 0, obedience: current.obedience || 0,
-      phone: current.phone || 0, seat: current.seat || 0, homework: current.homework || 0,
+      phone: current.phone || 0, reading: current.reading || 0, homework: current.homework || 0,
       punctuality: current.punctuality || 0,
       bonus: current.bonus || 0, attendance: current.attendance ?? null,
       ...patch, updated_at: new Date().toISOString(),
@@ -374,7 +375,9 @@ export default function Teacher() {
           </div>
         ) : tab === "people" ? (
           <div style={{ marginTop: 16 }}>
-            <Card C={C}>
+            <SendPush C={C} />
+            <PushToggle C={C} />
+            <Card C={C} style={{ marginTop: 12 }}>
               <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Waiting for approval</h3>
               {waiting.length === 0 ? (
                 <p style={{ fontSize: 14, color: C.muted, marginTop: 10 }}>Nobody is waiting. New sign-ups appear here.</p>
