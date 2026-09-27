@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Stat, Calendar, Button, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
+import { PushToggle } from "../../lib/push";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
   RUPEES_PER_BUCK,
@@ -191,6 +192,7 @@ export default function Me() {
           {lastWeekPlace === 1 ? <span style={{ marginLeft: 10, fontSize: 30 }}>👑</span> : null}
         </h1>
         {student?.schedule ? <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>{student.schedule}</div> : null}
+        <PushToggle C={C} />
 
         <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
           <Stat C={C} label={`Points in ${MONTHS[cursor.m].slice(0, 3)}`} value={monthPoints} big />
