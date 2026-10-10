@@ -101,7 +101,16 @@ export function SendPush({ C }) {
     const { count: n } = await sb().from("push_subscriptions").select("id", { count: "exact", head: true });
     setCount(n ?? 0);
   };
-  useEffect(() => { loadCount(); }, []);
+  const [daily, setDaily] = useState(null);
+  useEffect(() => {
+    loadCount();
+    sb().from("app_settings").select("daily_reading_enabled").eq("id", 1).single().then(({ data }) => setDaily(data ? data.daily_reading_enabled : null));
+  }, []);
+  const toggleDaily = async () => {
+    const next = !daily; setDaily(next);
+    const { error } = await sb().from("app_settings").update({ daily_reading_enabled: next, updated_at: new Date().toISOString() }).eq("id", 1);
+    if (error) setDaily(!next);
+  };
 
   const send = async () => {
     if (!title.trim() || !body.trim()) return setResult("Add a title and a message first.");
@@ -129,6 +138,18 @@ export function SendPush({ C }) {
         {busy ? "Sending\u2026" : "Send to everyone"}
       </button>
       {result ? <div style={{ fontSize: 13, color: result.startsWith("Didn't") ? C.warn : C.deep, marginTop: 10 }}>{result}</div> : null}
+      {daily !== null ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Daily reading reminder</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{daily ? "On: every day at 8:30 pm" : "Paused"}</div>
+          </div>
+          <button onClick={toggleDaily}
+            style={{ background: daily ? C.soft : C.accent, color: daily ? C.deep : C.onAccent, borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+            {daily ? "Pause" : "Resume"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
