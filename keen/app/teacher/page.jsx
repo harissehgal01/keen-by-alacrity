@@ -45,9 +45,11 @@ export default function Teacher() {
   const [finalizedWeeks, setFinalizedWeeks] = useState([]);
   const [declaring, setDeclaring] = useState(false);
   const [weekResults, setWeekResults] = useState([]);
+  const [adjustments, setAdjustments] = useState([]);
+  const adjBucks = (sid) => adjustments.filter((a) => a.student_id === sid).reduce((t, a) => t + Number(a.bucks), 0);
 
   const load = useCallback(async () => {
-    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }, { data: fw }, { data: wr }] = await Promise.all([
+    const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }, { data: fw }, { data: wr }, { data: adj }] = await Promise.all([
       sb().from("students").select("*").eq("active", true).order("name"),
       sb().from("day_records").select("*"),
       sb().from("weekly_bucks").select("*"),
@@ -58,7 +60,9 @@ export default function Teacher() {
       sb().from("redemptions").select("*").order("created_at", { ascending: false }),
       sb().from("week_finalized").select("week_start"),
       sb().from("week_results").select("*"),
+      sb().from("bucks_adjustments").select("*"),
     ]);
+    setAdjustments(adj || []);
     setRewards(rw || []);
     setRedemptions(rd || []);
     setFinalizedWeeks((fw || []).map((x) => x.week_start));
@@ -252,8 +256,8 @@ export default function Teacher() {
   const weekWinners = bucks.filter((b) => b.week_start === thisWeek);
   const bucksTotals = students.map((s) => ({
     s,
-    bucks: weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.bucks), 0),
-    rupees: weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.rupees), 0),
+    bucks: weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.bucks), 0) + adjBucks(s.id),
+    rupees: (weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.bucks), 0) + adjBucks(s.id)) * RUPEES_PER_BUCK,
   })).sort((a, b) => b.bucks - a.bucks);
   const waiting = pending.filter((p) => p.role === "pending");
   const pendingRedemptions = redemptions.filter((r) => r.status === "requested");
@@ -505,8 +509,8 @@ export default function Teacher() {
               const r = rec(s.id);
               const sHw = homework.filter((h) => h.student_id === s.id);
               const sBucks = weekResults.filter((r) => r.student_id === s.id);
-              const totalBucks = sBucks.reduce((a2, r) => a2 + Number(r.bucks), 0);
-              const totalRupees = sBucks.reduce((a2, r) => a2 + Number(r.rupees), 0);
+              const totalBucks = sBucks.reduce((a2, r) => a2 + Number(r.bucks), 0) + adjBucks(s.id);
+              const totalRupees = totalBucks * RUPEES_PER_BUCK;
               return (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
