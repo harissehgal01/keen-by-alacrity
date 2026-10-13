@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button, Input, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
 import { PushToggle, SendPush } from "../../lib/push";
 import {
-  DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay,
+  DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay, fromIso,
   RUPEES_PER_BUCK,
 } from "../../lib/theme";
 
@@ -18,6 +18,7 @@ export default function Teacher() {
   const [students, setStudents] = useState([]);
   const [records, setRecords] = useState({});      // `${student_id}|${date}` -> row
   const [bucks, setBucks] = useState([]);
+  const refreshTimer = useRef(null);
   const [pending, setPending] = useState([]);
   const [date, setDate] = useState(iso(new Date()));
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
@@ -96,6 +97,9 @@ export default function Teacher() {
 
   const write = async (sid, patch) => {
     const current = rec(sid);
+    // Giving marks means they were in class, so mark present automatically.
+    const scoring = Object.keys(patch).some((k) => k !== "attendance");
+    if (scoring && current.attendance !== "present" && !("attendance" in patch)) patch = { ...patch, attendance: "present" };
     const row = {
       student_id: sid, on_date: date,
       work: current.work || 0, behaviour: current.behaviour || 0, obedience: current.obedience || 0,
@@ -109,7 +113,14 @@ export default function Teacher() {
     const { error } = await sb().from("day_records")
       .upsert(row, { onConflict: "student_id,on_date" });
     if (error) { setStatus("Did NOT save — check your connection and try again."); await load(); }
-    else { setStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`); }
+    else {
+      setStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+      clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(async () => {
+        const { data: wb } = await sb().from("weekly_bucks").select("*");
+        if (wb) setBucks(wb);
+      }, 600);
+    }
   };
 
   const bump = (sid, key, delta, min, max) => {
@@ -238,7 +249,12 @@ export default function Teacher() {
     if (view === "day") return points(rec(sid));
     const keys = Object.keys(records)
       .filter((k) => k.startsWith(`${sid}|`))
-      .filter((k) => (view === "month" ? inMonth(k.split("|")[1]) : true));
+      .filter((k) => {
+        const d = k.split("|")[1];
+        if (view === "month") return inMonth(d);
+        if (view === "week") { const dow = fromIso(d).getDay(); return mondayOf(d) === mondayOf(date) && dow >= 1 && dow <= 5; }
+        return true;
+      });
     if (!keys.length) return 0;
     const total = keys.reduce((a, k) => a + points(records[k]), 0);
     return Math.round((total / keys.length) * 10) / 10;
@@ -637,7 +653,7 @@ export default function Teacher() {
                 {showCal ? "Hide calendar" : "Calendar"}
               </button>
               <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.line}`, borderRadius: 999, padding: 3 }}>
-                {[["day", "Day"], ["month", "Month"], ["all", "All time"]].map(([k, l]) => (
+                {[["day", "Day"], ["week", "Week"], ["month", "Month"], ["all", "All time"]].map(([k, l]) => (
                   <button key={k} onClick={() => setView(k)}
                     style={{ background: view === k ? C.accent : "transparent", color: view === k ? C.onAccent : C.muted, fontWeight: 500, fontSize: 12.5, padding: "7px 13px", borderRadius: 999 }}>
                     {l}
@@ -849,7 +865,7 @@ export default function Teacher() {
             </Card>
 
             <p style={{ color: C.muted, fontSize: 12, marginTop: 22, lineHeight: 1.6 }}>
-              Pick a date, mark attendance, then score each student. A perfect day is {MAXDAY} points.
+              Pick a date and score each student. Giving marks counts them present; only tap Absent or No class when needed. A perfect day is {MAXDAY} points.
               Every tap saves to the database straight away.
             </p>
             <InstallPrompt C={C} />
