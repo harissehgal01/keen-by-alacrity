@@ -5,6 +5,7 @@ import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Stat, Calendar, Button, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
 import { PushToggle } from "../../lib/push";
+import { WeeklyStandings } from "../../lib/standings";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
   RUPEES_PER_BUCK,
@@ -355,6 +356,8 @@ export default function Me() {
             </div>
           </Card>
         ) : null}
+        <WeeklyStandings C={C} highlightIds={childId ? [childId] : []} />
+
         <Card C={C} style={{ marginTop: 12 }}>
           <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 10 }}>
