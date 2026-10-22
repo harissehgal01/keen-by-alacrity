@@ -255,9 +255,17 @@ export default function Teacher() {
         if (view === "week") { const dow = fromIso(d).getDay(); return mondayOf(d) === mondayOf(date) && dow >= 1 && dow <= 5; }
         return true;
       });
-    if (!keys.length) return 0;
-    const total = keys.reduce((a, k) => a + points(records[k]), 0);
-    return Math.round((total / keys.length) * 10) / 10;
+    // Only real classes count: "No class" days and unmarked empty days are left out.
+    // Absent still counts as a 0, since missing class is on the student.
+    const counted = keys.filter((k) => {
+      const r = records[k];
+      if (r.attendance === "no_class") return false;
+      if (!r.attendance && !points(r)) return false;
+      return true;
+    });
+    if (!counted.length) return 0;
+    const total = counted.reduce((a, k) => a + points(records[k]), 0);
+    return Math.round((total / counted.length) * 10) / 10;
   };
   const attStats = (sid) => {
     const keys = Object.keys(records).filter((k) => k.startsWith(`${sid}|`) && inMonth(k.split("|")[1]));
