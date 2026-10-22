@@ -175,6 +175,7 @@ export default function Feed() {
             </button>
             <button onClick={() => router.push("/rules")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Rules</button>
             <button onClick={() => router.push("/updates")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>New</button>
+            <button onClick={() => router.push("/ideas")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Ideas</button>
           </div>
         </div>
 

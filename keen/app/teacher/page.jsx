@@ -299,6 +299,7 @@ export default function Teacher() {
               <button onClick={() => router.push("/feed")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Feed</button>
               <button onClick={() => router.push("/rules")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Rules</button>
             <button onClick={() => router.push("/updates")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>New</button>
+            <button onClick={() => router.push("/ideas")} style={{ background: "transparent", color: C.accent, fontSize: 13, fontWeight: 600 }}>Ideas</button>
               <button onClick={signOut} style={{ background: "transparent", color: C.muted, fontSize: 13, fontWeight: 600 }}>Sign out</button>
             </div>
             <div style={{ fontFamily: MONO, fontSize: 10.5, color: status.includes("NOT") ? C.warn : C.muted, marginTop: 4 }}>{status}</div>
