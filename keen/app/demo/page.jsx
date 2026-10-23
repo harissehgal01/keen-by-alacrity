@@ -11,15 +11,15 @@ const mk = (vals) => ({ ...Object.fromEntries(CATS.map((c) => [c.key, 0])), bonu
 
 const SAMPLE_STUDENTS = [
   { id: "s1", name: "Zara", schedule: "Mon to Fri, 4:30 to 5:30 pm", bank: 32, wins: 3, seconds: 1, thirds: 0, lastPlace: 1,
-    today: mk({ ...full(), bonus: 2 }), att: "present", avg: 48.6 },
+    history: [44, 46, 43, 45], today: mk({ ...full(), bonus: 2 }), att: "present" },
   { id: "s2", name: "Omar", schedule: "Mon to Fri, 4:30 to 5:30 pm", bank: 22, wins: 1, seconds: 2, thirds: 1, lastPlace: 2,
-    today: mk({ work: 5, behaviour: 4, obedience: 5, phone: 5, reading: 4, homework: 5, punctuality: 5 }), att: "present", avg: 46.2 },
+    history: [45, 47, 44, 46], today: mk({ work: 3, behaviour: 3, obedience: 3, phone: 3, reading: 3, homework: 3, punctuality: 3 }), att: "present" },
   { id: "s3", name: "Sana", schedule: "Mon, Wed, Fri", bank: 14, wins: 1, seconds: 0, thirds: 2, lastPlace: 3,
-    today: mk({ work: 4, behaviour: 5, obedience: 4, phone: 5, reading: 5, homework: 4, punctuality: 5 }), att: "present", avg: 44.9 },
+    history: [48, 47], today: mk({ work: 5, behaviour: 5, obedience: 5, phone: 5, reading: 5, homework: 4, punctuality: 5 }), att: "present" },
   { id: "s4", name: "Bilal", schedule: "Mon to Thu, 7 to 8 pm", bank: 6, wins: 0, seconds: 1, thirds: 1, lastPlace: null,
-    today: mk({ work: 3, behaviour: 4, obedience: 3, phone: 2, reading: 4, homework: 3, punctuality: 4 }), att: "present", avg: 38.1 },
+    history: [36, 39, 38], today: mk({ work: 3, behaviour: 4, obedience: 3, phone: 2, reading: 4, homework: 3, punctuality: 4 }), att: "present" },
   { id: "s5", name: "Hina", schedule: "Tue and Thu", bank: 2, wins: 0, seconds: 0, thirds: 1, lastPlace: null,
-    today: mk({}), att: "absent", avg: 35.4 },
+    history: [37], today: mk({}), att: "absent" },
 ];
 
 const SAMPLE_HOMEWORK = {
@@ -44,6 +44,14 @@ const SAMPLE_FEED = [
 
 const HW_BADGE = { done: ["Done", "accent"], partial: ["Partial", "#B8860B"], not_done: ["Not done", "muted"] };
 
+// Weekly average per class held: past classes this week plus today.
+// Absent counts as a class with 0; ranking never uses the raw total.
+const weekStats = (s) => {
+  const list = [...s.history, points(s.today)];
+  const total = list.reduce((a, b) => a + b, 0);
+  return { classes: list.length, total, avg: Math.round((total / list.length) * 10) / 10 };
+};
+
 export default function Demo() {
   const { C, dark, setDark } = useTheme();
   const router = useRouter();
@@ -51,14 +59,23 @@ export default function Demo() {
   const [students, setStudents] = useState(SAMPLE_STUDENTS);
   const [open, setOpen] = useState("s2");
   const [viewAs, setViewAs] = useState("s1");
+  const [status, setStatus] = useState("");
+  const [requested, setRequested] = useState(null);
 
-  const bump = (sid, key, delta, min, max) =>
+  const stamp = () => setStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} \u00b7 demo only`);
+  const bump = (sid, key, delta, min, max) => (stamp(),
     setStudents((all) => all.map((s) => s.id !== sid ? s
-      : { ...s, today: { ...s.today, [key]: Math.max(min, Math.min(max, (s.today[key] || 0) + delta)) } }));
-  const perfect = (sid) => setStudents((all) => all.map((s) => s.id !== sid ? s : { ...s, today: { ...s.today, ...full() } }));
+      : { ...s, today: { ...s.today, [key]: Math.max(min, Math.min(max, (s.today[key] || 0) + delta)) } })));
+  const perfect = (sid) => (stamp(), setStudents((all) => all.map((s) => s.id !== sid ? s : { ...s, today: { ...s.today, ...full() } })));
 
   const color = (c) => (c === "accent" ? C.accent : c === "muted" ? C.muted : c);
-  const ranked = [...students].sort((a, b) => b.avg - a.avg);
+  const ranked = students.map((s) => ({ ...s, ...weekStats(s) })).sort((a, b) => b.avg - a.avg);
+  const request = (r) => {
+    const cost = r.price / RUPEES_PER_BUCK;
+    if (me.bank < cost) return;
+    setStudents((all) => all.map((s) => (s.id === me.id ? { ...s, bank: s.bank - cost } : s)));
+    setRequested({ name: r.name, icon: r.icon, who: me.name });
+  };
   const me = students.find((s) => s.id === viewAs);
 
   const tabBtn = (k, l) => (
@@ -97,7 +114,10 @@ export default function Demo() {
 
         {tab === "teacher" && (
           <div style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 13, color: C.muted, margin: "0 0 10px" }}>Ranked by average score per class, so students with fewer classes a week compete fairly. Tap a student to score them.</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, margin: "0 0 10px" }}>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>This week, ranked by <strong style={{ color: C.ink }}>average per class</strong>, not total, so 3-day and 5-day students compete fairly. Tap a student to score today.</p>
+              {status ? <span style={{ fontFamily: MONO, fontSize: 11, color: C.deep, whiteSpace: "nowrap" }}>{status}</span> : null}
+            </div>
             {ranked.map((s, i) => {
               const val = points(s.today);
               const isOpen = open === s.id;
@@ -112,10 +132,13 @@ export default function Demo() {
                     <span style={{ position: "relative", flex: 1 }}>
                       <span style={{ fontSize: 16, fontWeight: 500 }}>{s.name}{s.lastPlace === 1 ? " \u{1F451}" : ""}</span>
                       <span style={{ display: "block", fontSize: 11.5, color: s.att === "absent" ? C.warn : C.muted, marginTop: 2 }}>
-                        {s.att === "absent" ? "Absent today" : "Present"} · avg {s.avg} / {MAXDAY}
+                        {s.classes} classes · total {s.total}{s.att === "absent" ? " · absent today" : ""}
                       </span>
                     </span>
-                    <span style={{ position: "relative", fontFamily: MONO, fontSize: 19, fontWeight: 700, color: i === 0 ? C.accent : C.ink }}>{val}</span>
+                    <span style={{ position: "relative", textAlign: "right" }}>
+                      <span style={{ display: "block", fontFamily: MONO, fontSize: 19, fontWeight: 700, color: i === 0 ? C.accent : C.ink }}>{s.avg.toFixed(1)}</span>
+                      <span style={{ display: "block", fontSize: 10.5, color: C.muted }}>avg / {MAXDAY}</span>
+                    </span>
                   </button>
                   {isOpen && (
                     <div style={{ background: C.surface2, border: `1px solid ${C.line}`, borderTop: "none", borderRadius: "0 0 14px 14px", padding: "10px 16px 16px" }}>
@@ -131,7 +154,7 @@ export default function Demo() {
                       <ScoreRow C={C} label="Bonus or penalty" hint="Extra effort, or points lost" signed value={s.today.bonus || 0}
                         onMinus={() => bump(s.id, "bonus", -1, -10, 10)} onPlus={() => bump(s.id, "bonus", 1, -10, 10)} />
                       <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${C.line}`, marginTop: 10 }}>
-                        <span style={{ fontSize: 13, color: C.muted }}>Day total</span>
+                        <span style={{ fontSize: 13, color: C.muted }}>Today's class</span>
                         <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.accent }}>{val} / {MAXDAY}</span>
                       </div>
                     </div>
@@ -169,7 +192,7 @@ export default function Demo() {
             <div style={{ fontSize: 13.5, color: C.muted, marginTop: 4 }}>{me.schedule}</div>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <Stat C={C} label="Today" value={points(me.today)} big />
-              <Stat C={C} label="Weekly average" value={me.avg} />
+              <Stat C={C} label="Weekly average" value={weekStats(me).avg} />
               <Stat C={C} label="Attendance" value={me.att === "absent" ? "Absent" : "Present"} />
             </div>
 
@@ -233,16 +256,34 @@ export default function Demo() {
 
         {tab === "store" && (
           <div style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 13, color: C.muted, margin: "0 0 10px" }}>Students spend their bucks here, or tap "Save for this" to track progress toward something bigger.</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, margin: "0 0 10px" }}>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Shopping as <strong style={{ color: C.ink }}>{me.name}</strong>, sample student.</p>
+              <span style={{ fontFamily: MONO, fontSize: 13, color: C.accent, whiteSpace: "nowrap" }}>{me.bank} bucks · Rs {me.bank * RUPEES_PER_BUCK}</span>
+            </div>
+            {requested ? (
+              <div style={{ background: C.soft, color: C.deep, borderRadius: 12, padding: "12px 14px", marginBottom: 10, fontSize: 14, display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ fontSize: 22 }}>{requested.icon}</span>
+                <span><strong>{requested.name} requested.</strong> The teacher hands it over in class. (Demo only)</span>
+              </div>
+            ) : null}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {SAMPLE_STORE.map((r) => (
-                <div key={r.name} style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: 16, textAlign: "center" }}>
-                  <div style={{ fontSize: 34, lineHeight: 1 }}>{r.icon}</div>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 10 }}>{r.name}</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{r.desc}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 13, color: C.accent, marginTop: 6 }}>Rs {r.price}</div>
-                </div>
-              ))}
+              {SAMPLE_STORE.map((r) => {
+                const cost = r.price / RUPEES_PER_BUCK;
+                const can = me.bank >= cost;
+                return (
+                  <div key={r.name} style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: 16, textAlign: "center" }}>
+                    <div style={{ fontSize: 34, lineHeight: 1 }}>{r.icon}</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 10 }}>{r.name}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{r.desc}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 13, color: C.accent, marginTop: 6 }}>Rs {r.price} · {cost} bucks</div>
+                    <button onClick={() => request(r)} disabled={!can} data-reward={r.name}
+                      style={{ width: "100%", marginTop: 10, background: can ? C.accent : "transparent", color: can ? C.onAccent : C.muted,
+                        border: can ? "none" : `1px solid ${C.line}`, borderRadius: 10, padding: "8px 0", fontSize: 13, fontWeight: 600 }}>
+                      {can ? "Request" : `Need ${cost - me.bank} more`}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
