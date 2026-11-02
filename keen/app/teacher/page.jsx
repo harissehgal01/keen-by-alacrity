@@ -5,6 +5,7 @@ import { sb } from "../../lib/supabaseClient";
 import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button, Input, Footer } from "../../lib/ui";
 import { InstallPrompt } from "../../lib/auth";
 import { PushToggle, SendPush } from "../../lib/push";
+import { HwRow, HwSummary, HwLegend } from "../../lib/homework";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay, fromIso,
   RUPEES_PER_BUCK,
@@ -231,6 +232,19 @@ export default function Teacher() {
     await sb().from("homework").delete().eq("id", id);
     await load();
   };
+
+  // Compact "add homework" line: title, optional due date (defaults to the next day), Set.
+  const hwAddRow = (s, placeholder) => (
+    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+      <Input C={C} value={hwTitle[s.id] || ""} placeholder={placeholder || "Add homework…"}
+        onChange={(e) => setHwTitle((t) => ({ ...t, [s.id]: e.target.value }))}
+        onKeyDown={(e) => e.key === "Enter" && addHomework(s.id)} style={{ fontSize: 14, minWidth: 0 }} />
+      <input type="date" value={hwDue[s.id] || ""} title="Due date (blank = next day)"
+        onChange={(e) => setHwDue((d) => ({ ...d, [s.id]: e.target.value }))}
+        style={{ width: 132, flexShrink: 0, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, color: hwDue[s.id] ? C.ink : C.muted, padding: "8px 6px", fontSize: 12.5, fontFamily: "inherit" }} />
+      <Button C={C} onClick={() => addHomework(s.id)} style={{ padding: "0 14px", fontSize: 14, flexShrink: 0 }}>Set</Button>
+    </div>
+  );
 
   const signOut = async () => { await sb().auth.signOut(); router.replace("/login"); };
 
@@ -603,26 +617,10 @@ export default function Teacher() {
                       if (sHw.length === 0) return <p style={{ fontSize: 13.5, color: C.muted, marginTop: 8 }}>Nothing set.</p>;
                       return (
                         <>
-                          {shown.map((h) => {
-                            const badge = h.status === "done" ? { l: "Done", c: C.accent }
-                              : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
-                              : { l: "Not done", c: C.muted };
-                            const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
-                            return (
-                              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
-                                    {h.title}
-                                  </div>
-                                  <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
-                                    {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`} · {badge.l}
-                                    {overdue ? " · overdue" : ""}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                          <HwSummary C={C} list={sHw} />
+                          <div style={{ marginTop: 8 }}>
+                            {shown.map((h) => <HwRow key={h.id} C={C} h={h} />)}
+                          </div>
                           {hiddenCount > 0 ? (
                             <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: true }))}
                               style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
@@ -748,73 +746,29 @@ export default function Teacher() {
 
 
                         <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                             <span style={{ fontSize: 14.5, fontWeight: 600 }}>Homework</span>
-                            <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}>
-                              {homework.filter((h) => h.student_id === s.id && h.status !== "done").length} outstanding
-                            </span>
+                            <span style={{ fontSize: 11.5, color: C.muted }}>Tap a circle to change status</span>
                           </div>
-
                           {(() => {
                             const all = homework.filter((h) => h.student_id === s.id);
                             const shownHw = hwExpanded[s.id] ? all : recentHw(all);
                             const hidden = all.length - shownHw.length;
-                            if (all.length === 0) return <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>Nothing set yet.</div>;
                             return (
                               <>
                                 {shownHw.map((h) => (
-                              <div key={h.id} style={{ marginTop: 12 }}>
-                                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
-                                      {h.title}
-                                    </div>
-                                    <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 2 }}>
-                                      {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`}
-                                    </div>
-                                  </div>
-                                  <button onClick={() => removeHomework(h.id)}
-                                    style={{ background: "transparent", color: C.muted, fontSize: 12 }}>Delete</button>
-                                </div>
-                                <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                                  {[["not_done", "Not done"], ["partial", "Partial"], ["done", "Done"]].map(([st, l]) => {
-                                    const on = h.status === st;
-                                    const c = st === "done" ? C.accent : st === "partial" ? "#B8860B" : C.muted;
-                                    return (
-                                      <button key={st} onClick={() => setHomeworkStatus(h, st)}
-                                        style={{ flex: 1, background: on ? c : "transparent", color: on ? "#FFFFFF" : C.ink,
-                                          border: `1px solid ${on ? c : C.line}`, borderRadius: 999, padding: "6px 0", fontSize: 11.5, fontWeight: 500 }}>
-                                        {l}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+                                  <HwRow key={h.id} C={C} h={h} onStatus={setHomeworkStatus} onDelete={removeHomework} />
                                 ))}
-                                {hidden > 0 ? (
-                                  <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: true }))}
-                                    style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
-                                    Show all ({hidden} more)
-                                  </button>
-                                ) : hwExpanded[s.id] ? (
-                                  <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: false }))}
-                                    style={{ background: "transparent", color: C.muted, fontSize: 12.5, fontWeight: 500, marginTop: 10 }}>
-                                    Show less
+                                {hidden > 0 || hwExpanded[s.id] ? (
+                                  <button onClick={() => setHwExpanded((e) => ({ ...e, [s.id]: !e[s.id] }))}
+                                    style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 6 }}>
+                                    {hidden > 0 ? `Show older (${hidden})` : "Show less"}
                                   </button>
                                 ) : null}
                               </>
                             );
                           })()}
-
-                          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-                            <Input C={C} value={hwTitle[s.id] || ""} placeholder="Set homework…"
-                              onChange={(e) => setHwTitle((t) => ({ ...t, [s.id]: e.target.value }))}
-                              onKeyDown={(e) => e.key === "Enter" && addHomework(s.id)} style={{ fontSize: 14 }} />
-                            <input type="date" value={hwDue[s.id] || ""}
-                              onChange={(e) => setHwDue((d) => ({ ...d, [s.id]: e.target.value }))}
-                              style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, color: C.ink, padding: "10px 8px", fontSize: 13, fontFamily: "inherit" }} />
-                            <Button C={C} onClick={() => addHomework(s.id)} style={{ padding: "0 16px", fontSize: 14 }}>Set</Button>
-                          </div>
+                          {hwAddRow(s)}
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${C.line}`, marginTop: 10 }}>
                           <span style={{ fontSize: 13, color: C.muted }}>Day total</span>
@@ -826,6 +780,33 @@ export default function Teacher() {
                 );
               })}
             </div>
+
+            <Card C={C} style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Homework board</h3>
+                <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}>
+                  {homework.filter((h) => h.status !== "done").length} open
+                </span>
+              </div>
+              <HwLegend C={C} />
+              {[...students].sort((x, y) => x.name.localeCompare(y.name)).map((s) => {
+                const open = homework.filter((h) => h.student_id === s.id && (h.status !== "done" || recentHw([h]).length));
+                return (
+                  <div key={s.id} style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 600 }}>{s.name}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>
+                        {open.filter((h) => h.status !== "done").length ? `${open.filter((h) => h.status !== "done").length} open` : "all clear"}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      {open.map((h) => <HwRow key={h.id} C={C} h={h} onStatus={setHomeworkStatus} onDelete={removeHomework} />)}
+                    </div>
+                    {hwAddRow(s, `Add for ${s.name}…`)}
+                  </div>
+                );
+              })}
+            </Card>
 
             <Card C={C} style={{ marginTop: 20 }}>
               <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Alacrity Bucks</h3>

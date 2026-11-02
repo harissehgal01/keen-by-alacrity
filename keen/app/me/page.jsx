@@ -6,6 +6,7 @@ import { useTheme, Fonts, Lockup, ThemeToggle, Card, Stat, Calendar, Button, Foo
 import { InstallPrompt } from "../../lib/auth";
 import { PushToggle } from "../../lib/push";
 import { WeeklyStandings } from "../../lib/standings";
+import { HwRow, HwSummary } from "../../lib/homework";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
   RUPEES_PER_BUCK,
@@ -19,6 +20,7 @@ export default function Me() {
   const [recordsByStudent, setRecordsByStudent] = useState({});
   const [bucksByStudent, setBucksByStudent] = useState({});
   const [homeworkByStudent, setHomeworkByStudent] = useState({});
+  const [showDoneHw, setShowDoneHw] = useState(false);
   const [rewards, setRewards] = useState([]);
   const [redemptionsByStudent, setRedemptionsByStudent] = useState({});
   const [redeeming, setRedeeming] = useState(false);
@@ -293,26 +295,7 @@ export default function Me() {
             return (
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>Homework for this day</div>
-                {dayHw.map((h) => {
-                  const badge = h.status === "done" ? { l: "Done", c: C.accent }
-                    : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
-                    : { l: "Not done", c: C.muted };
-                  const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
-                  return (
-                    <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 8 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
-                          {h.title}
-                        </div>
-                        <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
-                          {`Set ${pretty(h.set_on)}${h.due_date ? ` \u00b7 Due ${pretty(h.due_date)}` : ""}`} \u00b7 {badge.l}
-                          {overdue ? " \u00b7 overdue" : ""}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {dayHw.map((h) => <HwRow key={h.id} C={C} h={h} />)}
               </div>
             );
           })()}
@@ -326,35 +309,25 @@ export default function Me() {
 
         {homework.length ? (
           <Card C={C} style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Homework</h3>
-              <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>
-                {homework.filter((h) => h.status !== "done").length} to do
-              </span>
-            </div>
-            {homework.map((h) => {
-              const badge = h.status === "done" ? { l: "Done", c: C.accent }
-                : h.status === "partial" ? { l: "Partial", c: "#B8860B" }
-                : { l: "Not done", c: C.muted };
-              const overdue = h.status !== "done" && h.due_date && h.due_date < iso(new Date());
+            <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Homework</h3>
+            <HwSummary C={C} list={homework} />
+            {(() => {
+              const open = homework.filter((h) => h.status !== "done");
+              const done = homework.filter((h) => h.status === "done");
+              const shownDone = showDoneHw ? done : done.slice(-2);
               return (
-                <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 999, background: badge.c, marginTop: 6, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5, textDecoration: h.status === "done" ? "line-through" : "none", color: h.status === "done" ? C.muted : C.ink }}>
-                      {h.title}
-                    </div>
-                    <div style={{ fontFamily: MONO, fontSize: 11, color: overdue ? C.warn : C.muted, marginTop: 2 }}>
-                      {`Set ${pretty(h.set_on)}${h.due_date ? ` · Due ${pretty(h.due_date)}` : ""}`} · {badge.l}
-                      {overdue ? " · overdue" : ""}
-                    </div>
-                  </div>
+                <div style={{ marginTop: 10 }}>
+                  {open.map((h) => <HwRow key={h.id} C={C} h={h} />)}
+                  {shownDone.map((h) => <HwRow key={h.id} C={C} h={h} />)}
+                  {done.length > 2 ? (
+                    <button onClick={() => setShowDoneHw((v) => !v)}
+                      style={{ background: "transparent", color: C.accent, fontSize: 12.5, fontWeight: 500, marginTop: 8 }}>
+                      {showDoneHw ? "Hide finished" : `Show all finished (${done.length})`}
+                    </button>
+                  ) : null}
                 </div>
               );
-            })}
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 14, lineHeight: 1.5 }}>
-              Status is set by your teacher, not here.
-            </div>
+            })()}
           </Card>
         ) : null}
         <WeeklyStandings C={C} highlightIds={childId ? [childId] : []} />
