@@ -7,6 +7,7 @@ import { InstallPrompt } from "../../lib/auth";
 import { PushToggle } from "../../lib/push";
 import { WeeklyStandings } from "../../lib/standings";
 import { HwRow, HwSummary } from "../../lib/homework";
+import { StoreEditor, RewardThumb, useStoreEditor } from "../../lib/storeEditor";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
   RUPEES_PER_BUCK,
@@ -33,6 +34,11 @@ export default function Me() {
   const [cursor, setCursor] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [loading, setLoading] = useState(true);
   const [showCal, setShowCal] = useState(false);
+  const storeEditor = useStoreEditor();
+  const reloadRewards = async () => {
+    const { data } = await sb().from("rewards").select("*").eq("active", true).order("price_rupees");
+    setRewards(data || []);
+  };
 
   useEffect(() => {
     (async () => {
@@ -410,6 +416,10 @@ export default function Me() {
                 </Card>
               ) : null}
 
+              {storeEditor.until ? (
+                <StoreEditor C={C} userId={storeEditor.userId} until={storeEditor.until} onChanged={reloadRewards} />
+              ) : null}
+
               <Card C={C} style={{ marginTop: 12 }}>
                 <h3 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, margin: 0 }}>Spend your bucks</h3>
                 <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
@@ -426,6 +436,7 @@ export default function Me() {
                       const isGoal = r.id === goalId;
                       return (
                         <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10 }}>
+                          {r.image_url ? <div style={{ marginRight: 10 }}><RewardThumb C={C} r={r} size={52} /></div> : null}
                           <div style={{ minWidth: 0, flex: 1, marginRight: 10 }}>
                             <div style={{ fontSize: 14.5 }}>{r.name}</div>
                             {r.description ? (

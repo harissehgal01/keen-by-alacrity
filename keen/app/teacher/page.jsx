@@ -6,6 +6,7 @@ import { useTheme, Fonts, Lockup, ThemeToggle, Card, Calendar, ScoreRow, Button,
 import { InstallPrompt } from "../../lib/auth";
 import { PushToggle, SendPush } from "../../lib/push";
 import { HwRow, HwSummary, HwLegend } from "../../lib/homework";
+import { RewardThumb } from "../../lib/storeEditor";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay, fromIso,
   RUPEES_PER_BUCK,
@@ -378,7 +379,8 @@ export default function Teacher() {
               {rewards.map((r) => (
                 <div key={r.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {r.image_url ? <RewardThumb C={C} r={r} size={40} /> : null}
                       <span style={{ fontSize: 15, textDecoration: r.active ? "none" : "line-through", color: r.active ? C.ink : C.muted }}>{r.name}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.muted, marginLeft: 10 }}>Rs {r.price_rupees}</span>
                     </div>
