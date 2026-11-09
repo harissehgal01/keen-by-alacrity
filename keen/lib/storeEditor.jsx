@@ -57,7 +57,7 @@ export function StoreEditor({ C, userId, until, onChanged }) {
   const pick = useRef(null);
 
   const load = async () => {
-    const { data } = await sb().from("rewards").select("*").eq("created_by", userId).order("created_at", { ascending: false });
+    const { data } = await sb().from("rewards").select("*").order("created_at", { ascending: false });
     setMine(data || []);
   };
   useEffect(() => { load(); }, [userId]);
@@ -111,7 +111,7 @@ export function StoreEditor({ C, userId, until, onChanged }) {
         <span style={{ fontSize: 12.5, color: C.accent, fontWeight: 600 }}>{open ? "Close" : "Add items"}</span>
       </button>
       <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
-        You can add and remove your own items until {untilLabel(until)}.
+        You can add and remove items in the store until {untilLabel(until)}.
       </div>
 
       {open ? (
@@ -138,7 +138,7 @@ export function StoreEditor({ C, userId, until, onChanged }) {
 
           {live.length ? (
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>In the store now</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>In the store now ({live.length})</div>
               {live.map((r) => (
                 <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 10 }}>
                   {r.image_url ? <RewardThumb C={C} r={r} size={44} /> : null}
