@@ -43,6 +43,7 @@ export default function Teacher() {
   const [links, setLinks] = useState([]);
   const [addChildFor, setAddChildFor] = useState(null);
   const [rewards, setRewards] = useState([]);
+  const [deleteId, setDeleteId] = useState(null); // store item waiting for "Delete for good" confirmation
   const [redemptions, setRedemptions] = useState([]);
   const [newReward, setNewReward] = useState({ name: "", price: "", description: "" });
   const [finalizedWeeks, setFinalizedWeeks] = useState([]);
@@ -167,6 +168,11 @@ export default function Teacher() {
   };
   const toggleReward = async (id, active) => {
     await sb().from("rewards").update({ active: !active }).eq("id", id);
+    await load();
+  };
+  const deleteReward = async (id) => {
+    await sb().from("rewards").delete().eq("id", id);
+    setDeleteId(null);
     await load();
   };
   const resolveRedemption = async (id, status) => {
@@ -384,11 +390,24 @@ export default function Teacher() {
                       <span style={{ fontSize: 15, textDecoration: r.active ? "none" : "line-through", color: r.active ? C.ink : C.muted }}>{r.name}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.muted, marginLeft: 10 }}>Rs {r.price_rupees}</span>
                     </div>
-                    <button onClick={() => toggleReward(r.id, r.active)}
-                      style={{ background: "transparent", color: r.active ? C.warn : C.accent, fontSize: 12.5, fontWeight: 500 }}>
-                      {r.active ? "Retire" : "Restore"}
-                    </button>
+                    <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                      <button onClick={() => toggleReward(r.id, r.active)}
+                        style={{ background: "transparent", color: r.active ? C.warn : C.accent, fontSize: 12.5, fontWeight: 500 }}>
+                        {r.active ? "Retire" : "Restore"}
+                      </button>
+                      <button onClick={() => setDeleteId(deleteId === r.id ? null : r.id)}
+                        style={{ background: "transparent", color: C.muted, fontSize: 12.5, fontWeight: 500 }}>
+                        Delete
+                      </button>
+                    </div>
                   </div>
+                  {deleteId === r.id ? (
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, padding: "8px 10px", borderRadius: 8, background: C.absentBg, fontSize: 12.5 }}>
+                      <span style={{ flex: 1, color: C.ink }}>Delete {r.name} for good? Past orders keep their record.</span>
+                      <button onClick={() => deleteReward(r.id)} style={{ background: C.warn, color: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 600 }}>Delete</button>
+                      <button onClick={() => setDeleteId(null)} style={{ background: "transparent", color: C.muted, fontSize: 12 }}>Keep</button>
+                    </div>
+                  ) : null}
                   <Input C={C} defaultValue={r.description || ""} placeholder="What's included (optional)"
                     onBlur={(e) => { if (e.target.value !== (r.description || "")) updateRewardDescription(r.id, e.target.value); }}
                     style={{ marginTop: 8, fontSize: 13, color: C.muted }} />
