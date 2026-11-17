@@ -121,6 +121,17 @@ export default function Me() {
     setGoalByStudent((g) => ({ ...g, [childId]: null }));
   };
 
+  // A student can take back an order until the teacher marks it as bought.
+  const cancelOrder = async (r) => {
+    setRedeemErr("");
+    const { data, error } = await sb().from("redemptions").update({ status: "cancelled" }).eq("id", r.id).eq("status", "requested").select();
+    if (error || !data || !data.length) {
+      setRedeemErr("That order has already been bought, so it can't be removed now.");
+    }
+    const { data: rd } = await sb().from("redemptions").select("*").eq("student_id", childId).order("created_at", { ascending: false });
+    setRedemptionsByStudent((m) => ({ ...m, [childId]: rd || [] }));
+  };
+
   const redeem = async (reward, available) => {
     if (reward.price_rupees > available) return;
     setRedeeming(true); setRedeemErr("");
@@ -471,11 +482,17 @@ export default function Me() {
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Your requests</div>
                   {myRedemptions.map((r) => (
-                    <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 6 }}>
-                      <span>{r.reward_name}</span>
+                    <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, marginTop: 8, gap: 8 }}>
+                      <span style={{ flex: 1, minWidth: 0, textDecoration: r.status === "cancelled" ? "line-through" : "none", color: r.status === "cancelled" ? C.muted : C.ink }}>{r.reward_name}</span>
                       <span style={{ color: r.status === "given" ? C.accent : r.status === "cancelled" ? C.warn : C.muted, fontFamily: MONO, fontSize: 12 }}>
-                        {r.status}
+                        {r.status === "given" ? "bought" : r.status === "requested" ? "waiting" : "removed"}
                       </span>
+                      {r.status === "requested" ? (
+                        <button onClick={() => cancelOrder(r)} aria-label={`Remove my order: ${r.reward_name}`}
+                          style={{ background: "transparent", color: C.warn, border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 500 }}>
+                          Remove
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
