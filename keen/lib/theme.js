@@ -36,6 +36,8 @@ export const WEEKLY_TIERS = [
   { place: 3, label: "3rd place", bucks: 2 },
 ];
 export const RUPEES_PER_BUCK = 50;
+// Alacrity Bucks are never shown or added with more than one decimal place.
+export const r1 = (n) => Math.round(Number(n) * 10) / 10;
 
 export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

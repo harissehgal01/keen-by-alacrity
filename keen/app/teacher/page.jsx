@@ -9,7 +9,7 @@ import { HwRow, HwSummary, HwLegend } from "../../lib/homework";
 import { RewardThumb } from "../../lib/storeEditor";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf, nextDay, fromIso,
-  RUPEES_PER_BUCK,
+  RUPEES_PER_BUCK, r1,
 } from "../../lib/theme";
 
 const ATT = [["present", "Present"], ["absent", "Absent"], ["no_class", "No class"]];
@@ -50,7 +50,7 @@ export default function Teacher() {
   const [declaring, setDeclaring] = useState(false);
   const [weekResults, setWeekResults] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
-  const adjBucks = (sid) => adjustments.filter((a) => a.student_id === sid).reduce((t, a) => t + Number(a.bucks), 0);
+  const adjBucks = (sid) => r1(adjustments.filter((a) => a.student_id === sid).reduce((t, a) => t + r1(a.bucks), 0));
 
   const load = useCallback(async () => {
     const [{ data: st }, { data: recs }, { data: wb }, { data: pf }, { data: hw }, { data: pl }, { data: rw }, { data: rd }, { data: fw }, { data: wr }, { data: adj }] = await Promise.all([
@@ -301,8 +301,8 @@ export default function Teacher() {
   const weekWinners = bucks.filter((b) => b.week_start === thisWeek);
   const bucksTotals = students.map((s) => ({
     s,
-    bucks: weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.bucks), 0) + adjBucks(s.id),
-    rupees: (weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + Number(r.bucks), 0) + adjBucks(s.id)) * RUPEES_PER_BUCK,
+    bucks: r1(weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + r1(r.bucks), 0) + adjBucks(s.id)),
+    rupees: r1(weekResults.filter((r) => r.student_id === s.id).reduce((a, r) => a + r1(r.bucks), 0) + adjBucks(s.id)) * RUPEES_PER_BUCK,
   })).sort((a, b) => b.bucks - a.bucks);
   const waiting = pending.filter((p) => p.role === "pending");
   const pendingRedemptions = redemptions.filter((r) => r.status === "requested");
@@ -569,7 +569,7 @@ export default function Teacher() {
               const r = rec(s.id);
               const sHw = homework.filter((h) => h.student_id === s.id);
               const sBucks = weekResults.filter((r) => r.student_id === s.id);
-              const totalBucks = sBucks.reduce((a2, r) => a2 + Number(r.bucks), 0) + adjBucks(s.id);
+              const totalBucks = r1(sBucks.reduce((a2, r) => a2 + r1(r.bucks), 0) + adjBucks(s.id));
               const totalRupees = totalBucks * RUPEES_PER_BUCK;
               return (
                 <>

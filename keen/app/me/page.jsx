@@ -10,7 +10,7 @@ import { HwRow, HwSummary } from "../../lib/homework";
 import { StoreEditor, RewardThumb, useStoreEditor } from "../../lib/storeEditor";
 import {
   DISPLAY, MONO, CATS, MAXDAY, BLANK, points, MONTHS, iso, pretty, mondayOf,
-  RUPEES_PER_BUCK,
+  RUPEES_PER_BUCK, r1,
 } from "../../lib/theme";
 
 export default function Me() {
@@ -166,8 +166,8 @@ export default function Me() {
   const today = records[date] || BLANK;
   const adjustments = adjustmentsByStudent[childId] || [];
   const bankedBucks = resultsByStudent[childId] || [];
-  const totalBucks = bankedBucks.reduce((a, b) => a + Number(b.bucks), 0)
-    + adjustments.reduce((a, adj) => a + Number(adj.bucks), 0);
+  const totalBucks = r1(bankedBucks.reduce((a, b) => a + r1(b.bucks), 0)
+    + adjustments.reduce((a, adj) => a + r1(adj.bucks), 0));
   const totalRupees = totalBucks * RUPEES_PER_BUCK;
   const firsts = bankedBucks.filter((b) => b.place === 1).length;
   const seconds = bankedBucks.filter((b) => b.place === 2).length;
